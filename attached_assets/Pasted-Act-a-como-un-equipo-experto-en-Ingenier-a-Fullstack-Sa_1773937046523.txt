@@ -1,0 +1,247 @@
+Actúa como un equipo experto en:
+
+* Ingeniería Fullstack SaaS (FastAPI + Frontend moderno)
+* UX/UI Designer nivel Airbnb / Apple / Real Estate premium
+* Arquitecto de software escalable
+* Experto en autenticación, dashboards y sistemas multiusuario
+
+Voy a mejorar la plataforma **ListaPro** para convertirla en un SaaS real con autenticación, personalización avanzada y experiencia premium.
+
+NO hagas código básico. Construye un sistema profesional listo para escalar.
+
+---
+
+# 🔐 1. SISTEMA DE AUTENTICACIÓN COMPLETO
+
+Implementa:
+
+### Registro (Sign Up)
+
+* Nombre
+* Email
+* Contraseña (hash segura)
+* Confirmación de contraseña
+
+### Login
+
+* Email + password
+* Manejo de sesiones (JWT o cookies seguras)
+
+### Demo Mode (MUY IMPORTANTE)
+
+* Botón: "Probar demo"
+* Accede sin registrarse
+* Carga propiedades de ejemplo pre-creadas
+* Usuario demo NO guarda cambios permanentes
+
+---
+
+# 👤 2. PERFIL DE USUARIO (CONFIGURACIONES)
+
+Crear página "Configuración" donde el usuario pueda editar:
+
+### Perfil:
+
+* Nombre
+* Foto de perfil
+* Teléfono
+* Email
+
+### Preferencias:
+
+* Idioma:
+
+  * Español
+  * Inglés
+* Moneda:
+
+  * MXN
+  * USD
+
+### Apariencia:
+
+* Modo:
+
+  * 🌙 Dark (default)
+  * ☀️ Light
+
+### Branding:
+
+* Logo personal
+* Nombre de agencia
+
+---
+
+# 🌗 3. MODO CLARO / OSCURO (ULTRA IMPORTANTE)
+
+Inspirado en las imágenes (Terris + Glasshaven):
+
+### Dark Mode:
+
+* Fondo negro profundo
+* UI elegante tipo lujo
+* Imágenes resaltan
+
+### Light Mode:
+
+* Fondo blanco limpio
+* Estilo moderno tipo Airbnb
+* Sombras suaves
+
+Agregar:
+
+* Toggle animado
+* Transiciones suaves al cambiar
+
+---
+
+# 🎨 4. MEJORA VISUAL GLOBAL
+
+Actualizar TODA la UI:
+
+* Hero cinematográfico
+* Cards tipo glassmorphism
+* Grid moderno
+* Tipografía editorial grande
+* Mucho uso de imágenes grandes
+
+Secciones estilo landing premium:
+
+* Hero
+* Servicios
+* Beneficios
+* Ejemplos visuales
+
+---
+
+# 🗺️ 5. MAPA GLOBAL EN DASHBOARD
+
+Agregar un mapa en el dashboard:
+
+* Mostrar TODAS las propiedades del usuario
+* Marcadores por ubicación
+* Click en marcador → ver propiedad
+* Filtros:
+
+  * venta / renta
+  * precio
+
+---
+
+# 📍 6. MAPA POR PROPIEDAD
+
+En cada listado:
+
+* Mostrar mapa individual
+* Ubicación exacta o aproximada
+* Mostrar:
+
+  * escuelas cercanas
+  * supermercados
+  * transporte
+
+---
+
+# 🧠 7. SISTEMA DE EVALUACIÓN DE PROPIEDADES
+
+Agregar métricas automáticas:
+
+* Score de atractivo (IA)
+* Nivel de precio (barato / promedio / alto)
+* Potencial de venta
+
+Mostrar como:
+
+* barras visuales
+* badges
+
+---
+
+# 🧪 8. DEMO INTELIGENTE
+
+Cuando el usuario entra en demo:
+
+* Cargar:
+
+  * 3 propiedades ejemplo
+  * PDFs ya generados
+  * imágenes listas
+* Mostrar UI completa funcional
+
+Mensaje:
+👉 “Estás en modo demo”
+
+---
+
+# 🧩 9. CONFIGURACIONES AVANZADAS EXTRA
+
+Agregar:
+
+### Notificaciones:
+
+* activar/desactivar
+
+### Preferencias IA:
+
+* tono del copy:
+
+  * formal
+  * lujo
+  * agresivo
+
+### Exportación:
+
+* calidad de imagen
+* formato PDF
+
+---
+
+# 📊 10. DASHBOARD MEJORADO
+
+Agregar:
+
+* gráfico simple (propiedades por mes)
+* actividad reciente
+* accesos rápidos
+
+---
+
+# 📱 11. EXPERIENCIA MOBILE
+
+Optimizar:
+
+* responsive perfecto
+* menú tipo app
+* botones grandes
+
+---
+
+# ⚙️ BACKEND
+
+* Sistema de usuarios (DB simple SQLite o similar)
+* Autenticación
+* Relaciones:
+  usuario → propiedades
+
+---
+
+# 🎯 OBJETIVO FINAL
+
+El sistema debe sentirse como:
+
+👉 un producto SaaS premium real
+👉 listo para vender a inmobiliarias
+
+---
+
+# 🚀 NIVEL DE CALIDAD
+
+* Código limpio
+* Modular
+* Escalable
+* UX impecable
+* Diseño tipo startup financiada
+
+---
+
+Genera TODOS los archivos necesarios y estructura completa para Replit.
