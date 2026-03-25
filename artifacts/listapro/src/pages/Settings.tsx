@@ -52,7 +52,7 @@ export default function Settings() {
                   </Avatar>
                   <div className="text-center sm:text-left">
                     <h3 className="text-xl font-bold">{user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Usuario Demo"}</h3>
-                    <p className="text-muted-foreground">{user?.email || "modo-demo@listapro.com"}</p>
+                    <p className="text-muted-foreground">{user?.email || "modo-demo@vendrixa.com"}</p>
                     {!isAuthenticated && (
                       <span className="inline-block mt-2 px-2 py-0.5 bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         Sesión no iniciada

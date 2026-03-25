@@ -12,13 +12,13 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem("listapro-theme");
+    const saved = localStorage.getItem("vendrixa-theme");
     return (saved as Theme) || "dark";
   });
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem("listapro-theme", newTheme);
+    localStorage.setItem("vendrixa-theme", newTheme);
   };
 
   const toggleTheme = () => {

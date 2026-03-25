@@ -9,7 +9,7 @@ export default function DemoBanner() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      const dismissed = sessionStorage.getItem("listapro-demo-dismissed");
+      const dismissed = sessionStorage.getItem("vendrixa-demo-dismissed");
       if (!dismissed) {
         setIsVisible(true);
       }
@@ -18,7 +18,7 @@ export default function DemoBanner() {
 
   const handleDismiss = () => {
     setIsVisible(false);
-    sessionStorage.setItem("listapro-demo-dismissed", "true");
+    sessionStorage.setItem("vendrixa-demo-dismissed", "true");
   };
 
   const handleLogin = () => {

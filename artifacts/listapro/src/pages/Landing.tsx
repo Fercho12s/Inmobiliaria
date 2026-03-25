@@ -28,7 +28,7 @@ export default function Landing() {
             className="text-center w-full max-w-5xl"
           >
             <h1 className="text-6xl md:text-[10rem] font-sans font-bold text-white tracking-tighter leading-none mb-6">
-              LISTAPRO
+              VENDRIXA
             </h1>
             <p className="text-sm md:text-lg text-muted-foreground uppercase tracking-[0.4em] mb-12">
               A NEW STANDARD OF REAL ESTATE MARKETING

@@ -49,10 +49,10 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <Link href="/" className="group flex items-center gap-3">
             <div className="w-8 h-8 rounded-none border border-foreground flex items-center justify-center transition-transform duration-500">
-              <span className="font-sans font-bold text-foreground text-sm">LP</span>
+              <span className="font-sans font-bold text-foreground text-sm">VX</span>
             </div>
             <span className="font-sans text-xl font-bold tracking-widest text-foreground group-hover:text-muted-foreground transition-colors">
-              LISTAPRO
+              VENDRIXA
             </span>
           </Link>
 
