@@ -1,7 +1,7 @@
 {
-  "buildCommand": "pnpm --filter @workspace/listapro run build",
-  "outputDirectory": "artifacts/listapro/dist/public",
-  "installCommand": "pnpm install",
+  "buildCommand": "cd artifacts/listapro && npm install && npm run build",
+  "outputDirectory": "artifacts/listapro/dist",
+  "installCommand": "echo skip",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
