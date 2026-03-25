@@ -1,8 +1,0 @@
-{
-  "buildCommand": "cd artifacts/listapro && npm install && npm run build",
-  "outputDirectory": "artifacts/listapro/dist",
-  "installCommand": "echo skip",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
