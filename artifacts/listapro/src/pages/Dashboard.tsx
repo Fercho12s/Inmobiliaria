@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Search, Home as HomeIcon, BarChart as BarChartIcon, MapPin, Calendar } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import PropertyCard from "@/components/PropertyCard";
-import { useGetListings } from "@workspace/api-client-react";
+import { useGetListings } from "@/hooks/useListings";
 import { 
   BarChart, 
   Bar, 

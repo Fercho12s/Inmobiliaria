@@ -6,11 +6,11 @@ import {
   Copy, Download, Check, Instagram, Phone, Mail 
 } from "lucide-react";
 import { useState } from "react";
-import { 
-  useGetListingById, 
+import {
+  useGetListingById,
   useGenerateListingContent,
-  getGetListingByIdQueryKey 
-} from "@workspace/api-client-react";
+  getGetListingByIdQueryKey
+} from "@/hooks/useListings";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import PropertyMap from "@/components/PropertyMap";

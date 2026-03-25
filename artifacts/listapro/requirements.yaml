@@ -13,5 +13,5 @@ images:
     aspect_ratio: "16:9"
 
 notes:
-  - Uses @workspace/api-client-react for API hooks.
+  - Uses local hooks in src/hooks/ for API calls (useListings, useAuth).
   - Dark mode by default for the luxury cinematic aesthetic.

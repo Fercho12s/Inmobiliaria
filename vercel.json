@@ -1,0 +1,8 @@
+{
+  "buildCommand": "pnpm --filter @workspace/listapro run build",
+  "outputDirectory": "artifacts/listapro/dist/public",
+  "installCommand": "pnpm install",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

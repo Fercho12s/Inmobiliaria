@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Bed, Bath, Maximize, MapPin, Eye, Sparkles, Trash2 } from "lucide-react";
-import type { Listing } from "@workspace/api-client-react";
+import type { Listing } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
