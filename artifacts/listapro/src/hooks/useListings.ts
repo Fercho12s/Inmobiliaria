@@ -51,3 +51,28 @@ export function useGenerateListingContent(options?: {
     ...options?.mutation,
   });
 }
+
+export function useDeleteListing(options?: {
+  mutation?: {
+    onSuccess?: () => void;
+    onError?: (err: unknown) => void;
+  };
+}) {
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) =>
+      apiClient.delete<void>(`/listings/${id}`),
+    ...options?.mutation,
+  });
+}
+
+export function useUploadImage(options?: {
+  mutation?: {
+    onSuccess?: (data: { url: string }) => void;
+    onError?: (err: unknown) => void;
+  };
+}) {
+  return useMutation({
+    mutationFn: ({ file }: { file: File }) => apiClient.uploadImage(file),
+    ...options?.mutation,
+  });
+}

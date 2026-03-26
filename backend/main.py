@@ -1,19 +1,31 @@
-from fastapi import FastAPI, HTTPException, Depends
+import os
+import shutil
+import uuid
+from pathlib import Path
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from typing import List
 
 import models
 import schemas
 import ai
+import pdf_gen
+import image_gen
+import instagram as ig_module
+import video_gen
 from database import Base, engine, get_db
 
-# Crear tablas al iniciar
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Vendrixa API", version="1.0.0")
 
+# ── Middleware ────────────────────────────────────────────────────────────────
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -22,44 +34,90 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+OUTPUT_DIR  = os.getenv("OUTPUT_DIR", "./generated")
+UPLOADS_DIR = Path(OUTPUT_DIR) / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── Health ───────────────────────────────────────────────────────────────────
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_IMAGE_EXTS  = {"jpg", "jpeg", "png", "webp", "gif"}
+
+
+def _get_or_404(listing_id: int, db: Session):
+    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
+    if not listing:
+        raise HTTPException(status_code=404, detail="Propiedad no encontrada")
+    return listing
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/healthz")
 def health():
     return {"status": "ok"}
 
 
-# ── Auth (sin autenticación real por ahora) ───────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.get("/api/auth/user")
 def get_user():
     return {"user": None, "isAuthenticated": False}
 
-
 @app.get("/api/login")
 def login():
     return RedirectResponse(url="/")
-
 
 @app.get("/api/logout")
 def logout():
     return RedirectResponse(url="/")
 
 
-# ── Listings ─────────────────────────────────────────────────────────────────
+# ── Upload de imágenes ────────────────────────────────────────────────────────
+
+@app.post("/api/upload/image")
+async def upload_image(file: UploadFile = File(...)):
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, "Tipo de archivo no permitido. Usa JPG, PNG o WebP.")
+    ext = (file.filename or "img").rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_IMAGE_EXTS:
+        ext = "jpg"
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    dest = UPLOADS_DIR / filename
+    with dest.open("wb") as buf:
+        shutil.copyfileobj(file.file, buf)
+    return {"url": f"/uploads/{filename}"}
+
+
+# ── Listings CRUD ─────────────────────────────────────────────────────────────
 
 @app.get("/api/listings", response_model=List[schemas.Listing])
-def get_listings(db: Session = Depends(get_db)):
-    return db.query(models.Listing).order_by(models.Listing.id.desc()).all()
+def get_listings(
+    skip:  int          = Query(0,    ge=0),
+    limit: int          = Query(100,  ge=1, le=500),
+    q:     Optional[str]= Query(None, description="Buscar en título/dirección"),
+    city:  Optional[str]= Query(None),
+    type:  Optional[str]= Query(None, description="listingType: sale|rent"),
+    db:    Session      = Depends(get_db),
+):
+    query = db.query(models.Listing)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            models.Listing.title.ilike(like) |
+            models.Listing.address.ilike(like) |
+            models.Listing.city.ilike(like)
+        )
+    if city:
+        query = query.filter(models.Listing.city.ilike(f"%{city}%"))
+    if type:
+        query = query.filter(models.Listing.listingType == type)
+    return query.order_by(models.Listing.id.desc()).offset(skip).limit(limit).all()
 
 
 @app.get("/api/listings/{listing_id}", response_model=schemas.Listing)
 def get_listing(listing_id: int, db: Session = Depends(get_db)):
-    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
-    if not listing:
-        raise HTTPException(status_code=404, detail="Propiedad no encontrada")
-    return listing
+    return _get_or_404(listing_id, db)
 
 
 @app.post("/api/listings", response_model=schemas.Listing, status_code=201)
@@ -71,22 +129,138 @@ def create_listing(data: schemas.CreateListingInput, db: Session = Depends(get_d
     return listing
 
 
+@app.delete("/api/listings/{listing_id}", status_code=204)
+def delete_listing(listing_id: int, db: Session = Depends(get_db)):
+    listing = _get_or_404(listing_id, db)
+    db.delete(listing)
+    db.commit()
+
+
+# ── Generación IA ─────────────────────────────────────────────────────────────
+
 @app.post("/api/listings/{listing_id}/generate", response_model=schemas.Listing)
 def generate_content(listing_id: int, db: Session = Depends(get_db)):
-    listing = db.query(models.Listing).filter(models.Listing.id == listing_id).first()
-    if not listing:
-        raise HTTPException(status_code=404, detail="Propiedad no encontrada")
-
+    listing = _get_or_404(listing_id, db)
     try:
         generated = ai.generate_listing_content(listing)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al generar contenido: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al generar contenido: {e}")
 
     listing.generatedDescription = generated.get("description")
-    listing.instagramCaption = generated.get("instagram_caption")
-    listing.attractivenessScore = generated.get("attractiveness_score")
-    listing.priceLevel = generated.get("price_level")
-
+    listing.instagramCaption     = generated.get("instagram_caption")
+    listing.attractivenessScore  = generated.get("attractiveness_score")
+    listing.priceLevel           = generated.get("price_level")
     db.commit()
     db.refresh(listing)
     return listing
+
+
+# ── PDF ───────────────────────────────────────────────────────────────────────
+
+@app.get("/api/listings/{listing_id}/pdf")
+def download_pdf(listing_id: int, db: Session = Depends(get_db)):
+    listing = _get_or_404(listing_id, db)
+    out = os.path.join(OUTPUT_DIR, "pdfs", f"{listing_id}.pdf")
+    try:
+        pdf_gen.generate_pdf(listing, out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando PDF: {e}")
+    return FileResponse(
+        out,
+        media_type="application/pdf",
+        filename=f"vendrixa-propiedad-{listing_id}.pdf",
+    )
+
+
+# ── Imagen Instagram ──────────────────────────────────────────────────────────
+
+@app.get("/api/listings/{listing_id}/image/instagram")
+def download_instagram_image(listing_id: int, db: Session = Depends(get_db)):
+    listing = _get_or_404(listing_id, db)
+    out = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
+    try:
+        image_gen.generate_instagram_image(listing, out)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando imagen: {e}")
+    return FileResponse(
+        out,
+        media_type="image/jpeg",
+        filename=f"vendrixa-instagram-{listing_id}.jpg",
+    )
+
+
+# ── Publicar en Instagram ─────────────────────────────────────────────────────
+
+@app.post("/api/listings/{listing_id}/instagram/publish")
+async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
+    listing  = _get_or_404(listing_id, db)
+    img_path = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
+
+    if not Path(img_path).exists():
+        try:
+            image_gen.generate_instagram_image(listing, img_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error generando imagen: {e}")
+
+    caption = listing.instagramCaption or listing.title
+    try:
+        result = await ig_module.publish_to_instagram(img_path, caption)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {"success": True, "result": result}
+
+
+# ── Video (Remotion) ──────────────────────────────────────────────────────────
+
+@app.post("/api/listings/{listing_id}/video/generate")
+async def generate_video(
+    listing_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    listing = _get_or_404(listing_id, db)
+    status  = video_gen.get_status(listing_id)
+
+    if status.get("status") == "rendering":
+        return {"status": "rendering", "progress": status.get("progress", 0)}
+
+    listing_data = {
+        "title":        listing.title,
+        "price":        listing.price,
+        "currency":     listing.currency,
+        "listingType":  listing.listingType,
+        "propertyType": listing.propertyType,
+        "bedrooms":     listing.bedrooms,
+        "bathrooms":    listing.bathrooms,
+        "area":         listing.area,
+        "areaUnit":     listing.areaUnit,
+        "city":         listing.city,
+        "state":        listing.state,
+        "images":       listing.images or [],
+        "agentName":    listing.agentName,
+        "agentPhone":   listing.agentPhone,
+        "agentEmail":   listing.agentEmail,
+    }
+
+    background_tasks.add_task(video_gen.render_video, listing_id, listing_data)
+    return {"status": "rendering", "progress": 0}
+
+
+@app.get("/api/listings/{listing_id}/video/status")
+def video_status(listing_id: int):
+    return video_gen.get_status(listing_id)
+
+
+@app.get("/api/listings/{listing_id}/video")
+def download_video(listing_id: int):
+    path = video_gen.get_video_path(listing_id)
+    if not Path(path).exists():
+        raise HTTPException(status_code=404, detail="Video no generado todavía")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename=f"vendrixa-reel-{listing_id}.mp4",
+    )

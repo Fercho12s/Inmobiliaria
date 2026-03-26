@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(grep -v \"^ui$\")"
+      "Bash(grep -v \"^ui$\")",
+      "Bash(\"c:/Users/secre/OneDrive/Documents/6to informatica/proyecto persoanl/Inmobiliraria/Design-Guide-Templates/backend/.env.example\")"
     ]
   }
 }

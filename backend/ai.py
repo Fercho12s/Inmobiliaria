@@ -5,7 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+_groq_key = os.getenv("GROQ_API_KEY")
+if _groq_key:
+    client = OpenAI(
+        api_key=_groq_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
+    _model = "llama-3.1-8b-instant"
+else:
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    _model = "gpt-4o-mini"
 
 
 def generate_listing_content(listing) -> dict:
@@ -44,7 +53,7 @@ Responde ÚNICAMENTE con un JSON válido con este formato exacto:
 }}"""
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=_model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
         temperature=0.7,

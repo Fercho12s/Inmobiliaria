@@ -1,6 +1,7 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# Backend
+# Variables de entorno (nunca subir al repo)
+.env
 backend/.env
 backend/vendrixa.db
 backend/__pycache__/

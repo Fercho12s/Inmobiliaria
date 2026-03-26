@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Building, MapPin, List, CheckCircle2, User, Loader2 } from "lucide-react";
+import { Building, MapPin, List, CheckCircle2, User, Loader2, Upload, X } from "lucide-react";
 import { useCreateListing } from "@/hooks/useListings";
+import { apiClient } from "@/lib/apiClient";
 import type { CreateListingInputListingType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
@@ -47,6 +48,9 @@ const labelClasses = "block text-xs font-bold uppercase tracking-widest text-mut
 export default function NewListing() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [uploading, setUploading] = useState(false);
+  const [uploadedPreviews, setUploadedPreviews] = useState<{url: string; name: string}[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -99,6 +103,38 @@ export default function NewListing() {
         listingType: data.listingType as CreateListingInputListingType
       }
     });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const newPreviews: {url: string; name: string}[] = [];
+      const newUrls: string[] = [];
+      for (const file of files) {
+        const { url } = await apiClient.uploadImage(file);
+        newUrls.push(url);
+        newPreviews.push({ url, name: file.name });
+      }
+      setUploadedPreviews(prev => [...prev, ...newPreviews]);
+      const current = form.getValues("images") || "";
+      const existing = current.split(",").map(s => s.trim()).filter(Boolean);
+      form.setValue("images", [...existing, ...newUrls].join(", "));
+      toast({ title: `${newUrls.length} imagen(es) subida(s)` });
+    } catch {
+      toast({ title: "Error al subir imagen", variant: "destructive" });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeUploadedPreview = (url: string) => {
+    setUploadedPreviews(prev => prev.filter(p => p.url !== url));
+    const current = form.getValues("images") || "";
+    const filtered = current.split(",").map(s => s.trim()).filter(s => s && s !== url);
+    form.setValue("images", filtered.join(", "));
   };
 
   const toggleAmenity = (amenity: string) => {
@@ -284,13 +320,51 @@ export default function NewListing() {
                 
                 <div className="space-y-6 mb-8">
                   <div>
-                    <label className={labelClasses}>URLs de Imágenes (Separadas por comas)</label>
-                    <textarea 
-                      {...form.register("images")} 
-                      rows={2} 
-                      className={inputClasses} 
-                      placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg" 
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={labelClasses}>Imágenes</label>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors disabled:opacity-40"
+                      >
+                        {uploading
+                          ? <><Loader2 className="w-3 h-3 animate-spin"/> Subiendo...</>
+                          : <><Upload className="w-3 h-3"/> Subir desde PC</>
+                        }
+                      </button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={handleImageUpload}
                     />
+                    {uploadedPreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {uploadedPreviews.map(p => (
+                          <div key={p.url} className="relative group aspect-square">
+                            <img src={p.url} alt={p.name} className="w-full h-full object-cover rounded border border-white/10"/>
+                            <button
+                              type="button"
+                              onClick={() => removeUploadedPreview(p.url)}
+                              className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3 text-white"/>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <textarea
+                      {...form.register("images")}
+                      rows={2}
+                      className={inputClasses}
+                      placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg"
+                    />
+                    <p className="text-xs text-muted-foreground/50 mt-1">Pega URLs separadas por comas o sube archivos directamente.</p>
                   </div>
                 </div>
 

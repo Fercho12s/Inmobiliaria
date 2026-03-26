@@ -1,16 +1,18 @@
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
-import { useQueryClient } from "@tanstack/react-query";
-import { 
-  ArrowLeft, Bed, Bath, Maximize, MapPin, Sparkles, 
-  Copy, Download, Check, Instagram, Phone, Mail 
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft, Bed, Bath, Maximize, MapPin, Sparkles,
+  Copy, Download, Check, Instagram, Phone, Mail,
+  Image as ImageIcon, Video, Loader2, Share2
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useGetListingById,
   useGenerateListingContent,
   getGetListingByIdQueryKey
 } from "@/hooks/useListings";
+import { apiClient } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import PropertyMap from "@/components/PropertyMap";
@@ -20,9 +22,54 @@ export default function ListingDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const [copiedDesc, setCopiedDesc] = useState(false);
-  const [copiedIg, setCopiedIg] = useState(false);
-  const [activeTab, setActiveTab] = useState<"desc" | "ig" | "hooks">("desc");
+  const [copiedDesc, setCopiedDesc]   = useState(false);
+  const [copiedIg,   setCopiedIg]     = useState(false);
+  const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks">("desc");
+  const [igPublishing, setIgPublishing] = useState(false);
+  const [videoPolling, setVideoPolling] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Publica en Instagram
+  const publishMutation = useMutation({
+    mutationFn: () => apiClient.post(`/listings/${id}/instagram/publish`, {}),
+    onSuccess: () => {
+      toast({ title: "Publicado en Instagram", description: "Post enviado exitosamente." });
+      setIgPublishing(false);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Error al publicar";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+      setIgPublishing(false);
+    },
+  });
+
+  // Genera video
+  const videoMutation = useMutation({
+    mutationFn: () => apiClient.post<{ status: string; progress: number }>(`/listings/${id}/video/generate`, {}),
+    onSuccess: () => setVideoPolling(true),
+    onError: () => toast({ title: "Error", description: "No se pudo iniciar el render.", variant: "destructive" }),
+  });
+
+  // Polling del estado del video
+  const { data: videoStatus } = useQuery({
+    queryKey: ["video-status", id],
+    queryFn:  () => apiClient.get<{ status: string; progress: number; error?: string }>(`/listings/${id}/video/status`),
+    enabled:  videoPolling,
+    refetchInterval: videoPolling ? 2000 : false,
+  });
+
+  useEffect(() => {
+    if (videoStatus?.status === "done" || videoStatus?.status === "error") {
+      setVideoPolling(false);
+      if (videoStatus.status === "done") {
+        toast({ title: "Video listo", description: "Haz clic en Descargar Video." });
+      } else {
+        toast({ title: "Error en video", description: videoStatus.error ?? "Error desconocido", variant: "destructive" });
+      }
+    }
+  }, [videoStatus]);
+
+  const downloadFile = (url: string) => window.open(url, "_blank");
 
   const { data: listing, isLoading, isError } = useGetListingById(Number(id));
   
@@ -355,17 +402,72 @@ export default function ListingDetail() {
                     </div>
 
                     {/* Actions */}
-                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
-                      <button 
-                        onClick={() => generateMutation.mutate({ id: Number(id) })}
-                        disabled={generateMutation.isPending}
-                        className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50"
-                      >
-                        {generateMutation.isPending ? "..." : "Regenerar"}
-                      </button>
-                      <button className="py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2">
-                        <Download className="w-4 h-4" /> PDF
-                      </button>
+                    <div className="pt-4 border-t border-white/10 space-y-3">
+
+                      {/* Fila 1: Regenerar + PDF */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => generateMutation.mutate({ id: Number(id) })}
+                          disabled={generateMutation.isPending}
+                          className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50"
+                        >
+                          {generateMutation.isPending ? "..." : "Regenerar"}
+                        </button>
+                        <button
+                          onClick={() => downloadFile(`/api/listings/${id}/pdf`)}
+                          className="py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2"
+                        >
+                          <Download className="w-4 h-4" /> PDF
+                        </button>
+                      </div>
+
+                      {/* Fila 2: Imagen + Publicar Instagram */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => downloadFile(`/api/listings/${id}/image/instagram`)}
+                          className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
+                        >
+                          <ImageIcon className="w-4 h-4" /> Imagen IG
+                        </button>
+                        <button
+                          onClick={() => { setIgPublishing(true); publishMutation.mutate(); }}
+                          disabled={igPublishing || publishMutation.isPending}
+                          className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
+                        >
+                          {igPublishing
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
+                            : <><Share2 className="w-4 h-4" /> Publicar IG</>
+                          }
+                        </button>
+                      </div>
+
+                      {/* Fila 3: Generar / Descargar Video */}
+                      <div>
+                        {videoStatus?.status === "done" ? (
+                          <button
+                            onClick={() => downloadFile(`/api/listings/${id}/video`)}
+                            className="w-full py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2"
+                          >
+                            <Download className="w-4 h-4" /> Descargar Video
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => videoMutation.mutate()}
+                            disabled={videoPolling || videoMutation.isPending}
+                            className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                          >
+                            {videoPolling ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Renderizando... {videoStatus?.progress ?? 0}%
+                              </>
+                            ) : (
+                              <><Video className="w-4 h-4" /> Generar Video Reel</>
+                            )}
+                          </button>
+                        )}
+                      </div>
+
                     </div>
 
                   </div>
