@@ -36,9 +36,54 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const CURRENCIES = [
+  { code: "USD", name: "Dólar estadounidense" },
+  { code: "MXN", name: "Peso mexicano" },
+  { code: "DOP", name: "Peso dominicano" },
+  { code: "EUR", name: "Euro" },
+  { code: "GBP", name: "Libra esterlina" },
+  { code: "CAD", name: "Dólar canadiense" },
+  { code: "AUD", name: "Dólar australiano" },
+  { code: "CHF", name: "Franco suizo" },
+  { code: "JPY", name: "Yen japonés" },
+  { code: "CNY", name: "Yuan chino" },
+  { code: "BRL", name: "Real brasileño" },
+  { code: "ARS", name: "Peso argentino" },
+  { code: "CLP", name: "Peso chileno" },
+  { code: "COP", name: "Peso colombiano" },
+  { code: "PEN", name: "Sol peruano" },
+  { code: "UYU", name: "Peso uruguayo" },
+  { code: "BOB", name: "Boliviano" },
+  { code: "PYG", name: "Guaraní paraguayo" },
+  { code: "VES", name: "Bolívar venezolano" },
+  { code: "GTQ", name: "Quetzal guatemalteco" },
+  { code: "HNL", name: "Lempira hondureño" },
+  { code: "NIO", name: "Córdoba nicaragüense" },
+  { code: "CRC", name: "Colón costarricense" },
+  { code: "PAB", name: "Balboa panameño" },
+  { code: "CUP", name: "Peso cubano" },
+  { code: "HTG", name: "Gourde haitiano" },
+  { code: "JMD", name: "Dólar jamaicano" },
+  { code: "TTD", name: "Dólar de Trinidad" },
+  { code: "SGD", name: "Dólar de Singapur" },
+  { code: "HKD", name: "Dólar de Hong Kong" },
+  { code: "KRW", name: "Won surcoreano" },
+  { code: "INR", name: "Rupia india" },
+  { code: "AED", name: "Dírham emiratí" },
+  { code: "SAR", name: "Riyal saudí" },
+  { code: "QAR", name: "Riyal catarí" },
+  { code: "KWD", name: "Dinar kuwaití" },
+  { code: "TRY", name: "Lira turca" },
+  { code: "RUB", name: "Rublo ruso" },
+  { code: "ZAR", name: "Rand sudafricano" },
+  { code: "NGN", name: "Naira nigeriana" },
+  { code: "EGP", name: "Libra egipcia" },
+  { code: "MAD", name: "Dírham marroquí" },
+];
+
 const AMENITIES_LIST = [
-  "Alberca", "Gimnasio", "Seguridad 24/7", "Estacionamiento", 
-  "Jardín", "Roof Garden", "Balcón", "Elevador", 
+  "Alberca", "Gimnasio", "Seguridad 24/7", "Estacionamiento",
+  "Jardín", "Roof Garden", "Balcón", "Elevador",
   "Cuarto de servicio", "Casa Club", "Cancha de Tenis", "Cine"
 ];
 
@@ -51,6 +96,7 @@ export default function NewListing() {
   const [uploading, setUploading] = useState(false);
   const [uploadedPreviews, setUploadedPreviews] = useState<{url: string; name: string}[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customAmenity, setCustomAmenity] = useState("");
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -146,6 +192,16 @@ export default function NewListing() {
     }
   };
 
+  const addCustomAmenity = () => {
+    const trimmed = customAmenity.trim();
+    if (!trimmed) return;
+    const current = formValues.amenities || [];
+    if (!current.includes(trimmed)) {
+      setValue("amenities", [...current, trimmed], { shouldValidate: true });
+    }
+    setCustomAmenity("");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <Navbar />
@@ -205,8 +261,9 @@ export default function NewListing() {
                     <div>
                       <label className={labelClasses}>Moneda</label>
                       <select {...form.register("currency")} className={inputClasses}>
-                        <option value="MXN">MXN</option>
-                        <option value="USD">USD</option>
+                        {CURRENCIES.map(c => (
+                          <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -299,8 +356,8 @@ export default function NewListing() {
                         key={amenity}
                         onClick={() => toggleAmenity(amenity)}
                         className={`px-4 py-3 text-sm text-left font-light transition-all border ${
-                          isSelected 
-                            ? "bg-white/10 border-white text-white font-medium" 
+                          isSelected
+                            ? "bg-white/10 border-white text-white font-medium"
                             : "bg-background border-white/10 text-muted-foreground hover:border-white/30"
                         }`}
                       >
@@ -308,6 +365,38 @@ export default function NewListing() {
                       </button>
                     );
                   })}
+                  {/* Amenidades personalizadas */}
+                  {(formValues.amenities || []).filter(a => !AMENITIES_LIST.includes(a)).map(a => (
+                    <button
+                      type="button"
+                      key={a}
+                      onClick={() => toggleAmenity(a)}
+                      className="px-4 py-3 text-sm text-left font-light transition-all border bg-white/10 border-white text-white font-medium flex items-center justify-between gap-2"
+                    >
+                      <span>{a}</span>
+                      <X className="w-3 h-3 opacity-50 flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Agregar amenidad personalizada */}
+                <div className="flex gap-2 mt-5">
+                  <input
+                    type="text"
+                    value={customAmenity}
+                    onChange={e => setCustomAmenity(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomAmenity(); } }}
+                    placeholder="Otra amenidad..."
+                    className={`${inputClasses} flex-1`}
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomAmenity}
+                    disabled={!customAmenity.trim()}
+                    className="px-4 py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    + Añadir
+                  </button>
                 </div>
               </section>
 
