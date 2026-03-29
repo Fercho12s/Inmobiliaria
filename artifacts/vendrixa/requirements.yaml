@@ -5,10 +5,10 @@ packages:
   "lucide-react": "For premium minimalist icons"
 
 images:
-  - path: "artifacts/listapro/public/images/hero-bg.png"
+  - path: "artifacts/vendrixa/public/images/hero-bg.png"
     description: "Cinematic dark architectural photography of a luxury modern mansion at night with warm interior lighting, extreme high quality, editorial style, 8k"
     aspect_ratio: "16:9"
-  - path: "artifacts/listapro/public/images/placeholder-property.png"
+  - path: "artifacts/vendrixa/public/images/placeholder-property.png"
     description: "Minimalist luxury real estate exterior photography, modern concrete and glass architecture, moody lighting, highly detailed"
     aspect_ratio: "16:9"
 

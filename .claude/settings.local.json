@@ -17,7 +17,13 @@
       "WebSearch",
       "WebFetch(domain:docs.upload-post.com)",
       "Bash(docker compose:*)",
-      "Bash(curl -s -X POST http://localhost:8000/api/listings/1537/instagram/publish)"
+      "Bash(curl -s -X POST http://localhost:8000/api/listings/1537/instagram/publish)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist)",
+      "Bash(tasklist /FI 'PID eq 20488')",
+      "Bash(wmic process:*)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, CPU, StartTime | Format-Table\")",
+      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force; Write-Host ''done''\")"
     ]
   }
 }
