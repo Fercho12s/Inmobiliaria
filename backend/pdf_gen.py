@@ -2,7 +2,6 @@
 pdf_gen.py — Genera brochure PDF premium usando Chromium headless + HTML/CSS
 """
 import base64
-import io
 import os
 import subprocess
 import tempfile
@@ -13,11 +12,20 @@ import requests
 CHROMIUM = os.getenv("REMOTION_CHROME_EXECUTABLE", "chromium")
 
 
-def _fetch_b64(url: str) -> str | None:
+def _fetch_b64(url_or_path: str) -> str | None:
+    p = Path(url_or_path)
+    if p.is_absolute() and p.exists():
+        try:
+            data = p.read_bytes()
+            b64  = base64.b64encode(data).decode()
+            return f"data:image/jpeg;base64,{b64}"
+        except Exception:
+            return None
+    # URL HTTP
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url_or_path, timeout=10)
         r.raise_for_status()
-        ct = r.headers.get("Content-Type", "image/jpeg").split(";")[0]
+        ct  = r.headers.get("Content-Type", "image/jpeg").split(";")[0]
         b64 = base64.b64encode(r.content).decode()
         return f"data:{ct};base64,{b64}"
     except Exception:
