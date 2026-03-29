@@ -1,17 +1,19 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Audio,
+  Img,
   Sequence,
-  useCurrentFrame,
-  useVideoConfig,
   interpolate,
   spring,
-  Img,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
 } from "remotion";
 
-// ── Tipos ─────────────────────────────────────────────────────────────────────
+// ── Tipos ──────────────────────────────────────────────────────────────────────
 
-interface ListingData {
+export interface ListingData {
   title: string;
   price: number;
   currency: string;
@@ -24,253 +26,495 @@ interface ListingData {
   city: string;
   state: string;
   images: string[];
+  imageFiles: string[];   // nombres en publicDir: "slides/slide-0.jpg"
   agentName: string;
   agentPhone: string;
   agentEmail: string;
 }
 
-interface Props {
+export interface Props {
   listing: ListingData;
+  hasMusic: boolean;
+  photoFrames: number;
+  outroFrames: number;
+  totalFrames: number;
 }
 
-// ── Constantes ────────────────────────────────────────────────────────────────
+// ── Constantes de diseño ───────────────────────────────────────────────────────
 
-export const PHOTO_FRAMES   = 90;   // 3 s a 30 fps
-export const TRANSITION     = 15;   // 0.5 s
-export const OUTRO_FRAMES   = 90;   // 3 s
+const GOLD     = "#C9A96E";
+const DARK     = "#0B0B0F";
+const FADE_IN  = 15;   // frames de fade‑in al inicio de cada slide
+const FADE_OUT = 15;   // frames de fade‑out al final de cada slide
+
+// ── Default props para preview en Remotion Studio ─────────────────────────────
 
 export const defaultProps: Props = {
   listing: {
-    title:        "Propiedad de ejemplo",
-    price:        5_000_000,
-    currency:     "MXN",
+    title:        "Casa de lujo en venta",
+    price:        450_000,
+    currency:     "USD",
     listingType:  "venta",
     propertyType: "Casa",
-    bedrooms:     3,
-    bathrooms:    2,
-    area:         200,
-    areaUnit:     "m2",
-    city:         "Ciudad de México",
-    state:        "CDMX",
+    bedrooms:     4,
+    bathrooms:    3,
+    area:         320,
+    areaUnit:     "m²",
+    city:         "Santo Domingo",
+    state:        "DN",
     images:       [],
-    agentName:    "Agente Demo",
-    agentPhone:   "55 1234 5678",
-    agentEmail:   "agente@demo.com",
+    imageFiles:   [],
+    agentName:    "Agente Vendrixa",
+    agentPhone:   "+1 809-000-0000",
+    agentEmail:   "agente@vendrixa.com",
   },
+  hasMusic:    false,
+  photoFrames: 120,
+  outroFrames: 90,
+  totalFrames: 210,
 };
+
+// ── Metadata dinámica (duración según número de fotos) ─────────────────────────
 
 export const calculateMetadata = ({ props }: { props: Props }) => {
-  const count = Math.max(1, (props.listing.images || []).length);
-  return { durationInFrames: count * PHOTO_FRAMES + OUTRO_FRAMES };
+  const slides = Math.max(1, (props.listing.imageFiles || []).length);
+  const total  = slides * (props.photoFrames || 120) + (props.outroFrames || 90);
+  return { durationInFrames: total };
 };
 
-// ── Utilidades ────────────────────────────────────────────────────────────────
+// ── Utilidad: formatear precio ─────────────────────────────────────────────────
 
-const fmt = (price: number, currency: string) =>
-  new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(price);
+function fmtPrice(price: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("es-MX", {
+      style:              "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(price);
+  } catch {
+    return `${currency} ${price.toLocaleString()}`;
+  }
+}
 
-// ── Slide de foto con Ken Burns ───────────────────────────────────────────────
+// ── Slide de foto individual ────────────────────────────────────────────────────
 
-const PhotoSlide: React.FC<{ url: string }> = ({ url }) => {
-  const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
-  const scale   = interpolate(frame, [0, PHOTO_FRAMES + TRANSITION], [1.0, 1.12], {
-    extrapolateRight: "clamp",
-  });
+interface PhotoSlideProps {
+  imageSrc:    string | null;   // staticFile URL o null
+  listing:     ListingData;
+  slideIndex:  number;
+  totalSlides: number;
+  duration:    number;          // duración total de este slide incl. FADE_OUT
+}
 
-  return (
-    <AbsoluteFill style={{ opacity }}>
-      <AbsoluteFill style={{ transform: `scale(${scale})`, transformOrigin: "center" }}>
-        <Img
-          src={url}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      </AbsoluteFill>
-      {/* Degradado */}
-      <AbsoluteFill
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.75) 100%)",
-        }}
-      />
-    </AbsoluteFill>
-  );
-};
-
-// ── Overlay de texto principal (primer slide) ─────────────────────────────────
-
-const MainOverlay: React.FC<{ listing: ListingData }> = ({ listing }) => {
+const PhotoSlide: React.FC<PhotoSlideProps> = ({
+  imageSrc, listing, slideIndex, totalSlides, duration,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const slide = (delay: number) =>
-    spring({ frame: frame - delay, fps, config: { damping: 18, stiffness: 70 } });
+  // ── Fade in / out ──────────────────────────────────────────────────────────
+  const slideOpacity = interpolate(
+    frame,
+    [0, FADE_IN, duration - FADE_OUT, duration],
+    [0, 1, 1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+  );
 
-  const badge = listing.listingType === "venta" ? "EN VENTA" : "EN RENTA";
+  // ── Ken Burns: zoom lento + paneo alternado ────────────────────────────────
+  const kenT = frame / duration;
+  const scale = interpolate(kenT, [0, 1], [1.0, 1.10]);
+  const panX  = slideIndex % 2 === 0
+    ? interpolate(kenT, [0, 1], [0, -30])
+    : interpolate(kenT, [0, 1], [0,  30]);
+  const panY  = interpolate(kenT, [0, 1], [0, -18]);
+
+  // ── Animaciones de texto (spring stagger) ─────────────────────────────────
+  const mkSpring = (delay: number) =>
+    spring({ frame: Math.max(0, frame - delay), fps, config: { damping: 20, stiffness: 80 } });
+
+  const s0 = mkSpring(2);   // brand / dots
+  const s1 = mkSpring(8);   // badges
+  const s2 = mkSpring(14);  // precio
+  const s3 = mkSpring(20);  // ciudad
+  const s4 = mkSpring(26);  // stats
+
+  const ty = (s: number) => `translateY(${(1 - s) * 50}px)`;
+
+  const badge = listing.listingType?.toLowerCase() === "venta" ? "EN VENTA" : "EN RENTA";
+  const price = fmtPrice(listing.price, listing.currency);
 
   return (
-    <AbsoluteFill
-      style={{
-        padding:        "80px 60px",
-        display:        "flex",
-        flexDirection:  "column",
-        justifyContent: "flex-end",
-        fontFamily:     "sans-serif",
-      }}
-    >
-      {/* Badge */}
-      <div
-        style={{
-          alignSelf:      "flex-start",
-          backgroundColor: "white",
-          color:           "black",
-          padding:         "10px 26px",
-          fontSize:        28,
-          fontWeight:      800,
-          letterSpacing:   4,
-          marginBottom:    28,
-          opacity:         slide(4),
-          transform:       `translateY(${(1 - slide(4)) * 40}px)`,
-        }}
-      >
-        {badge}
+    <AbsoluteFill style={{ opacity: slideOpacity }}>
+
+      {/* ── Foto con Ken Burns ───────────────────────────────────────────── */}
+      <AbsoluteFill style={{
+        transform:       `scale(${scale}) translate(${panX}px, ${panY}px)`,
+        transformOrigin: "center center",
+        overflow:        "hidden",
+      }}>
+        {imageSrc ? (
+          <Img
+            src={imageSrc}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <AbsoluteFill style={{
+            background: "linear-gradient(135deg, #1a1208 0%, #2a1e0a 50%, #0f0f0f 100%)",
+          }} />
+        )}
+      </AbsoluteFill>
+
+      {/* ── Gradientes superpuestos ──────────────────────────────────────── */}
+      <AbsoluteFill style={{
+        background: [
+          "linear-gradient(to bottom,",
+          "  rgba(0,0,0,0.55) 0%,",
+          "  transparent 28%,",
+          "  transparent 42%,",
+          "  rgba(0,0,0,0.90) 72%,",
+          "  rgba(0,0,0,0.97) 100%)",
+        ].join(""),
+      }} />
+
+      {/* ── Barra superior: brand + indicadores ─────────────────────────── */}
+      <div style={{
+        position:        "absolute",
+        top:             80,
+        left:            60,
+        right:           60,
+        display:         "flex",
+        justifyContent:  "space-between",
+        alignItems:      "center",
+        opacity:         s0,
+        transform:       ty(s0),
+      }}>
+        {/* Logo */}
+        <div style={{
+          fontFamily:    "sans-serif",
+          fontSize:      38,
+          fontWeight:    800,
+          color:         GOLD,
+          letterSpacing: 7,
+        }}>
+          VENDRIXA
+        </div>
+
+        {/* Dots */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {Array.from({ length: totalSlides }).map((_, i) => (
+            <div key={i} style={{
+              width:        i === slideIndex ? 34 : 10,
+              height:       10,
+              borderRadius: 5,
+              background:   i === slideIndex ? GOLD : "rgba(255,255,255,0.35)",
+            }} />
+          ))}
+        </div>
       </div>
 
-      {/* Precio */}
-      <div
-        style={{
-          fontSize:     70,
-          fontWeight:   900,
-          color:        "white",
-          lineHeight:   1.1,
-          marginBottom: 14,
-          opacity:      slide(9),
-          transform:    `translateY(${(1 - slide(9)) * 40}px)`,
-          textShadow:   "0 2px 24px rgba(0,0,0,0.6)",
-        }}
-      >
-        {fmt(listing.price, listing.currency)}
-      </div>
+      {/* ── Bloque inferior ─────────────────────────────────────────────── */}
+      <div style={{
+        position:  "absolute",
+        bottom:    0,
+        left:      0,
+        right:     0,
+        padding:   "0 60px 90px",
+      }}>
 
-      {/* Ubicación */}
-      <div
-        style={{
-          fontSize:     34,
-          color:        "rgba(255,255,255,0.88)",
-          marginBottom: 28,
-          opacity:      slide(14),
-          transform:    `translateY(${(1 - slide(14)) * 30}px)`,
-        }}
-      >
-        {listing.city}, {listing.state}
-      </div>
+        {/* Badges */}
+        <div style={{
+          display:      "flex",
+          gap:          16,
+          marginBottom: 30,
+          opacity:      s1,
+          transform:    ty(s1),
+        }}>
+          <span style={{
+            background:    GOLD,
+            color:         "#000",
+            fontFamily:    "sans-serif",
+            fontWeight:    800,
+            fontSize:      26,
+            letterSpacing: 4,
+            padding:       "10px 30px",
+            textTransform: "uppercase",
+          }}>
+            {badge}
+          </span>
+          <span style={{
+            background:    "rgba(255,255,255,0.12)",
+            border:        "1px solid rgba(255,255,255,0.30)",
+            color:         "#fff",
+            fontFamily:    "sans-serif",
+            fontWeight:    700,
+            fontSize:      26,
+            letterSpacing: 4,
+            padding:       "10px 30px",
+            textTransform: "uppercase",
+          }}>
+            {listing.propertyType}
+          </span>
+        </div>
 
-      {/* Stats */}
-      <div
-        style={{
-          display:   "flex",
-          gap:       40,
-          opacity:   slide(18),
-          transform: `translateY(${(1 - slide(18)) * 30}px)`,
-        }}
-      >
-        {[
-          { v: listing.bedrooms,  l: "Recámaras" },
-          { v: listing.bathrooms, l: "Baños" },
-          { v: `${listing.area}`, l: listing.areaUnit },
-        ].map(({ v, l }, i) => (
-          <div key={i} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 50, fontWeight: 800, color: "white" }}>{v}</div>
-            <div style={{ fontSize: 20, color: "rgba(255,255,255,0.65)", letterSpacing: 2 }}>
-              {l.toUpperCase()}
+        {/* Precio */}
+        <div style={{
+          fontFamily:    "sans-serif",
+          fontSize:      86,
+          fontWeight:    900,
+          color:         "#fff",
+          lineHeight:    1,
+          marginBottom:  18,
+          textShadow:    "0 4px 24px rgba(0,0,0,0.8)",
+          opacity:       s2,
+          transform:     ty(s2),
+        }}>
+          {price}
+        </div>
+
+        {/* Ciudad */}
+        <div style={{
+          fontFamily:    "sans-serif",
+          fontSize:      34,
+          fontWeight:    300,
+          color:         "rgba(255,255,255,0.78)",
+          letterSpacing: 1,
+          marginBottom:  42,
+          opacity:       s3,
+          transform:     ty(s3),
+        }}>
+          {listing.city}
+          {listing.state && listing.state !== listing.city ? `, ${listing.state}` : ""}
+        </div>
+
+        {/* Stats row */}
+        <div style={{
+          display:      "flex",
+          borderTop:    `2px solid ${GOLD}`,
+          paddingTop:   28,
+          opacity:      s4,
+          transform:    ty(s4),
+        }}>
+          {[
+            { v: String(listing.bedrooms  || 0), l: "RECÁM."              },
+            { v: String(listing.bathrooms || 0), l: "BAÑOS"               },
+            { v: String(listing.area      || 0), l: (listing.areaUnit || "M²").toUpperCase() },
+          ].map(({ v, l }, i, arr) => (
+            <div key={i} style={{
+              flex:          1,
+              display:       "flex",
+              flexDirection: "column",
+              alignItems:    "center",
+              borderRight:   i < arr.length - 1 ? "1px solid rgba(255,255,255,0.18)" : "none",
+            }}>
+              <span style={{
+                fontFamily: "sans-serif",
+                fontSize:   54,
+                fontWeight: 800,
+                color:      "#fff",
+                lineHeight: 1.1,
+              }}>{v}</span>
+              <span style={{
+                fontFamily:    "sans-serif",
+                fontSize:      22,
+                fontWeight:    700,
+                color:         GOLD,
+                letterSpacing: 3,
+                marginTop:     6,
+              }}>{l}</span>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </AbsoluteFill>
   );
 };
 
-// ── Slide de cierre ───────────────────────────────────────────────────────────
+// ── Slide de contacto (outro) ──────────────────────────────────────────────────
 
-const OutroSlide: React.FC<{ listing: ListingData }> = ({ listing }) => {
-  const frame   = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+const OutroSlide: React.FC<{ listing: ListingData; duration: number }> = ({ listing, duration }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  const fadeIn = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+  const fadeOut = interpolate(frame, [duration - 15, duration], [1, 0], {
+    extrapolateLeft: "clamp", extrapolateRight: "clamp",
+  });
+  const opacity = Math.min(fadeIn, fadeOut);
+
+  const mkSpring = (delay: number) =>
+    spring({ frame: Math.max(0, frame - delay), fps, config: { damping: 18, stiffness: 70 } });
+
+  const s0 = mkSpring(0);
+  const s1 = mkSpring(8);
+  const s2 = mkSpring(16);
+  const s3 = mkSpring(24);
 
   return (
-    <AbsoluteFill
-      style={{
-        backgroundColor: "#0B0B0F",
-        display:         "flex",
-        flexDirection:   "column",
-        alignItems:      "center",
-        justifyContent:  "center",
-        opacity,
-        fontFamily:      "sans-serif",
-        padding:         80,
-      }}
-    >
-      <div
-        style={{
-          fontSize:      52,
-          fontWeight:    900,
-          color:         "white",
-          letterSpacing: 10,
-          marginBottom:  48,
-        }}
-      >
-        VENDRIXA
+    <AbsoluteFill style={{
+      background: `radial-gradient(ellipse at 50% 40%, #1a1208 0%, ${DARK} 65%)`,
+      display:         "flex",
+      flexDirection:   "column",
+      alignItems:      "center",
+      justifyContent:  "center",
+      fontFamily:      "sans-serif",
+      padding:         "80px 100px",
+      opacity,
+    }}>
+
+      {/* Línea dorada superior */}
+      <div style={{
+        width:           interpolate(s0, [0, 1], [0, 100]),
+        height:          3,
+        background:      GOLD,
+        marginBottom:    60,
+      }} />
+
+      {/* Encabezado */}
+      <div style={{
+        fontSize:      38,
+        fontWeight:    300,
+        color:         "rgba(255,255,255,0.55)",
+        letterSpacing: 8,
+        textTransform: "uppercase",
+        marginBottom:  30,
+        opacity:       s1,
+        transform:     `translateY(${(1 - s1) * 60}px)`,
+      }}>
+        CONTACTA AL AGENTE
       </div>
 
-      <div style={{ width: 56, height: 2, backgroundColor: "white", marginBottom: 48 }} />
+      {/* Nombre del agente */}
+      <div style={{
+        fontSize:      70,
+        fontWeight:    800,
+        color:         "#fff",
+        textAlign:     "center",
+        letterSpacing: 2,
+        marginBottom:  50,
+        lineHeight:    1.1,
+        opacity:       s1,
+        transform:     `translateY(${(1 - s1) * 60}px)`,
+      }}>
+        {listing.agentName}
+      </div>
 
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 36, fontWeight: 700, color: "white", marginBottom: 14 }}>
-          {listing.agentName}
-        </div>
-        <div style={{ fontSize: 28, color: "rgba(255,255,255,0.65)", marginBottom: 8 }}>
+      {/* Separador */}
+      <div style={{
+        width:        "55%",
+        height:       1,
+        background:   `rgba(201, 169, 110, 0.35)`,
+        marginBottom: 50,
+      }} />
+
+      {/* Teléfono */}
+      {listing.agentPhone && (
+        <div style={{
+          fontSize:      50,
+          fontWeight:    600,
+          color:         GOLD,
+          letterSpacing: 2,
+          marginBottom:  20,
+          opacity:       s2,
+          transform:     `translateY(${(1 - s2) * 40}px)`,
+        }}>
           {listing.agentPhone}
         </div>
-        <div style={{ fontSize: 26, color: "rgba(255,255,255,0.5)" }}>
+      )}
+
+      {/* Email */}
+      {listing.agentEmail && (
+        <div style={{
+          fontSize:      34,
+          fontWeight:    300,
+          color:         "rgba(255,255,255,0.55)",
+          letterSpacing: 1,
+          marginBottom:  0,
+          opacity:       s3,
+          transform:     `translateY(${(1 - s3) * 40}px)`,
+        }}>
           {listing.agentEmail}
+        </div>
+      )}
+
+      {/* Brand footer */}
+      <div style={{
+        position:      "absolute",
+        bottom:        90,
+        display:       "flex",
+        flexDirection: "column",
+        alignItems:    "center",
+        gap:           10,
+        opacity:       s3,
+      }}>
+        <div style={{
+          fontSize:      46,
+          fontWeight:    800,
+          color:         GOLD,
+          letterSpacing: 8,
+        }}>
+          VENDRIXA
+        </div>
+        <div style={{
+          fontSize:      20,
+          fontWeight:    300,
+          color:         "rgba(255,255,255,0.28)",
+          letterSpacing: 5,
+          textTransform: "uppercase",
+        }}>
+          Real Estate Studio
         </div>
       </div>
     </AbsoluteFill>
   );
 };
 
-// ── Composición principal ─────────────────────────────────────────────────────
+// ── Composición principal ──────────────────────────────────────────────────────
 
-export const PropertyReel: React.FC<Props> = ({ listing }) => {
-  const photos = (listing.images || []).slice(0, 6);
-  const count  = Math.max(1, photos.length);
+export const PropertyReel: React.FC<Props> = ({
+  listing, hasMusic, photoFrames, outroFrames,
+}) => {
+  const PHOTO_F  = photoFrames || 120;
+  const OUTRO_F  = outroFrames || 90;
+  const XFADE    = FADE_OUT;  // superposición de fade para cross‑fade suave
+
+  const slides = (listing.imageFiles || []).length > 0
+    ? listing.imageFiles
+    : [null as unknown as string];  // al menos un slide oscuro si no hay fotos
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0B0B0F" }}>
-      {/* Secuencias de fotos */}
-      {(photos.length > 0 ? photos : [""]).map((url, i) => (
+    <AbsoluteFill style={{ backgroundColor: DARK }}>
+
+      {/* ── Música de fondo ─────────────────────────────────────────────── */}
+      {hasMusic && (
+        <Audio
+          src={staticFile("music/background.mp3")}
+          volume={0.25}
+          startFrom={0}
+        />
+      )}
+
+      {/* ── Slides de fotos (con cross‑fade solapado) ───────────────────── */}
+      {slides.map((imgFile, i) => (
         <Sequence
           key={i}
-          from={i * PHOTO_FRAMES}
-          durationInFrames={PHOTO_FRAMES + TRANSITION}
+          from={i * PHOTO_F}
+          durationInFrames={PHOTO_F + XFADE}  // el XFADE extra permite el solapamiento
         >
-          {url ? (
-            <PhotoSlide url={url} />
-          ) : (
-            <AbsoluteFill style={{ backgroundColor: "#111" }} />
-          )}
-          {i === 0 && <MainOverlay listing={listing} />}
+          <PhotoSlide
+            imageSrc={imgFile ? staticFile(imgFile) : null}
+            listing={listing}
+            slideIndex={i}
+            totalSlides={slides.length}
+            duration={PHOTO_F + XFADE}
+          />
         </Sequence>
       ))}
 
-      {/* Cierre */}
-      <Sequence from={count * PHOTO_FRAMES} durationInFrames={OUTRO_FRAMES}>
-        <OutroSlide listing={listing} />
+      {/* ── Slide de contacto (outro) ────────────────────────────────────── */}
+      <Sequence from={slides.length * PHOTO_F} durationInFrames={OUTRO_F}>
+        <OutroSlide listing={listing} duration={OUTRO_F} />
       </Sequence>
+
     </AbsoluteFill>
   );
 };
