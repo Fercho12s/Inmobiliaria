@@ -425,7 +425,7 @@ export default function Landing() {
             className="grid grid-cols-1 md:grid-cols-5 gap-12 items-center"
           >
             <div className="md:col-span-2">
-              <p className="text-base font-bold text-white">Carlos Méndez</p>
+              <p className="text-base font-bold text-white">Fernando Holguín</p>
               <p className="text-sm mt-1" style={{ color: "hsl(42,62%,48%)" }}>Fundador, VENDRIXA</p>
               <div className="w-12 h-px mt-6" style={{ background: "hsl(42,62%,48%)" }} />
             </div>
@@ -460,22 +460,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════
-          FOOTER CREDIT
-      ═══════════════════════════════════════════════ */}
-      <div className="py-5 border-t border-white/5 text-center" style={{ background: "hsl(220,52%,5%)" }}>
-        <p className="text-[11px] uppercase tracking-[0.3em] font-medium" style={{ color: "hsl(220,25%,28%)" }}>
-          Hecha por{" "}
-          <span
-            className="transition-colors cursor-default"
-            style={{ color: "hsl(42,62%,40%)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "hsl(42,62%,58%)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "hsl(42,62%,40%)")}
-          >
-            Fernando Holguín
-          </span>
-        </p>
-      </div>
     </div>
   );
 }
