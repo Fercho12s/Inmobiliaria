@@ -6,7 +6,7 @@ import {
   Copy, Download, Check, Instagram, Phone, Mail,
   Image as ImageIcon, Video, Loader2, Share2
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   useGetListingById,
   useGenerateListingContent,
@@ -24,10 +24,13 @@ export default function ListingDetail() {
   
   const [copiedDesc, setCopiedDesc]   = useState(false);
   const [copiedIg,   setCopiedIg]     = useState(false);
-  const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks">("desc");
-  const [igPublishing, setIgPublishing] = useState(false);
-  const [videoPolling, setVideoPolling] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks" | "imagen" | "video">("desc");
+  const [imgPreviewSrc, setImgPreviewSrc] = useState<string | null>(null);
+  const [igPublishing,    setIgPublishing]    = useState(false);
+  const [videoPublishing, setVideoPublishing] = useState(false);
+  const [videoPolling,   setVideoPolling]   = useState(false);
+  const [pdfLoading,     setPdfLoading]     = useState(false);
+  const [igImgLoading,   setIgImgLoading]   = useState(false);
 
   // Publica en Instagram
   const publishMutation = useMutation({
@@ -40,6 +43,20 @@ export default function ListingDetail() {
       const msg = err instanceof Error ? err.message : "Error al publicar";
       toast({ title: "Error", description: msg, variant: "destructive" });
       setIgPublishing(false);
+    },
+  });
+
+  // Publica video en Instagram
+  const videoPublishMutation = useMutation({
+    mutationFn: () => apiClient.post(`/listings/${id}/video/instagram/publish`, {}),
+    onSuccess: () => {
+      toast({ title: "Reel publicado en Instagram", description: "Video enviado exitosamente." });
+      setVideoPublishing(false);
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Error al publicar";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+      setVideoPublishing(false);
     },
   });
 
@@ -69,7 +86,43 @@ export default function ListingDetail() {
     }
   }, [videoStatus]);
 
-  const downloadFile = (url: string) => window.open(url, "_blank");
+  const handleGenerateImage = async () => {
+    setIgImgLoading(true);
+    try {
+      const r = await fetch(`/api/listings/${id}/image/instagram`);
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      const blob = await r.blob();
+      setImgPreviewSrc(URL.createObjectURL(blob));
+    } catch {
+      toast({ title: "Error", description: "No se pudo generar la imagen.", variant: "destructive" });
+    } finally {
+      setIgImgLoading(false);
+    }
+  };
+
+  const downloadBlob = async (
+    url: string,
+    filename: string,
+    setLoading: (v: boolean) => void,
+  ) => {
+    setLoading(true);
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Error ${r.status}`);
+      const blob = await r.blob();
+      const a    = document.createElement("a");
+      a.href     = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast({ title: "Error", description: "No se pudo descargar el archivo.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const { data: listing, isLoading, isError } = useGetListingById(Number(id));
   
@@ -331,11 +384,23 @@ export default function ListingDetail() {
                       >
                         Instagram
                       </button>
-                      <button 
-                        onClick={() => setActiveTab("hooks")} 
+                      <button
+                        onClick={() => setActiveTab("hooks")}
                         className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'hooks' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Hooks
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("imagen")}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'imagen' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                      >
+                        <ImageIcon className="w-3 h-3" /> Imagen
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("video")}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'video' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                      >
+                        <Video className="w-3 h-3" /> Video
                       </button>
                     </div>
 
@@ -399,12 +464,139 @@ export default function ListingDetail() {
                           </div>
                         </div>
                       )}
+
+                      {activeTab === 'imagen' && (
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-white">Imagen Instagram 1080×1080</h4>
+                          {!imgPreviewSrc && !igImgLoading && (
+                            <button
+                              onClick={handleGenerateImage}
+                              className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
+                            >
+                              <ImageIcon className="w-4 h-4" /> Generar Imagen
+                            </button>
+                          )}
+                          {igImgLoading && (
+                            <div className="flex justify-center items-center py-12">
+                              <Loader2 className="w-6 h-6 animate-spin text-white" />
+                              <span className="ml-3 text-sm text-muted-foreground">Generando imagen...</span>
+                            </div>
+                          )}
+                          {imgPreviewSrc && (
+                            <>
+                              <div className="border border-white/10 overflow-hidden">
+                                <img src={imgPreviewSrc} alt="Vista previa Instagram" className="w-full aspect-square object-cover" />
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => downloadBlob(`/api/listings/${id}/image/instagram`, `instagram-${id}.jpg`, setIgImgLoading)}
+                                  disabled={igImgLoading}
+                                  className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2 disabled:opacity-60"
+                                >
+                                  {igImgLoading
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                                    : <><Download className="w-4 h-4" /> Descargar</>}
+                                </button>
+                                <button
+                                  onClick={() => { setIgPublishing(true); publishMutation.mutate(); }}
+                                  disabled={igPublishing || publishMutation.isPending}
+                                  className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
+                                >
+                                  {igPublishing
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
+                                    : <><Share2 className="w-4 h-4" /> Publicar IG</>}
+                                </button>
+                              </div>
+                              <button
+                                onClick={handleGenerateImage}
+                                className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors"
+                              >
+                                Regenerar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {activeTab === 'video' && (
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-white">Video Reel</h4>
+                          {videoStatus?.status === "done" ? (
+                            <>
+                              <div className="border border-white/10 overflow-hidden bg-black">
+                                <video
+                                  src={`/api/listings/${id}/video`}
+                                  controls
+                                  className="w-full"
+                                />
+                              </div>
+                              {shortCaption && (
+                                <div className="bg-background border border-white/5 p-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Caption Short</p>
+                                  <p className="text-sm font-light text-white/80 leading-relaxed">{shortCaption}</p>
+                                  <button
+                                    onClick={() => copyToClipboard(shortCaption, false)}
+                                    className="mt-2 text-[10px] text-muted-foreground hover:text-white transition-colors flex items-center gap-1"
+                                  >
+                                    <Copy className="w-3 h-3" /> Copiar
+                                  </button>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={() => downloadBlob(`/api/listings/${id}/video`, `reel-${id}.mp4`, () => {})}
+                                  className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
+                                >
+                                  <Download className="w-4 h-4" /> Descargar
+                                </button>
+                                <button
+                                  onClick={() => { setVideoPublishing(true); videoPublishMutation.mutate(); }}
+                                  disabled={videoPublishing || videoPublishMutation.isPending}
+                                  className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
+                                >
+                                  {videoPublishing
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
+                                    : <><Share2 className="w-4 h-4" /> Publicar Reel</>}
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {(videoPolling || videoStatus?.status === "rendering") && (
+                                <div className="border border-white/5 bg-background p-6 flex flex-col items-center gap-3">
+                                  <Loader2 className="w-8 h-8 animate-spin text-white" />
+                                  <p className="text-sm text-muted-foreground">Renderizando video...</p>
+                                  <div className="w-full h-1 bg-white/10 overflow-hidden">
+                                    <div
+                                      className="h-full bg-white transition-all duration-500"
+                                      style={{ width: `${videoStatus?.progress ?? 0}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{videoStatus?.progress ?? 0}%</p>
+                                </div>
+                              )}
+                              {!videoPolling && videoStatus?.status !== "rendering" && (
+                                <p className="text-sm text-muted-foreground py-4 text-center">
+                                  El video aún no ha sido generado.
+                                </p>
+                              )}
+                              <button
+                                onClick={() => videoMutation.mutate()}
+                                disabled={videoPolling || videoMutation.isPending}
+                                className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+                              >
+                                {videoPolling || videoMutation.isPending
+                                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Iniciando render...</>
+                                  : <><Video className="w-4 h-4" /> Generar Video Reel</>}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
-                    <div className="pt-4 border-t border-white/10 space-y-3">
-
-                      {/* Fila 1: Regenerar + PDF */}
+                    <div className="pt-4 border-t border-white/10">
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => generateMutation.mutate({ id: Number(id) })}
@@ -414,60 +606,15 @@ export default function ListingDetail() {
                           {generateMutation.isPending ? "..." : "Regenerar"}
                         </button>
                         <button
-                          onClick={() => downloadFile(`/api/listings/${id}/pdf`)}
-                          className="py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2"
+                          onClick={() => downloadBlob(`/api/listings/${id}/pdf`, `propiedad-${id}.pdf`, setPdfLoading)}
+                          disabled={pdfLoading}
+                          className="py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2 disabled:opacity-60"
                         >
-                          <Download className="w-4 h-4" /> PDF
+                          {pdfLoading
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                            : <><Download className="w-4 h-4" /> PDF</>}
                         </button>
                       </div>
-
-                      {/* Fila 2: Imagen + Publicar Instagram */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          onClick={() => downloadFile(`/api/listings/${id}/image/instagram`)}
-                          className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
-                        >
-                          <ImageIcon className="w-4 h-4" /> Imagen IG
-                        </button>
-                        <button
-                          onClick={() => { setIgPublishing(true); publishMutation.mutate(); }}
-                          disabled={igPublishing || publishMutation.isPending}
-                          className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
-                        >
-                          {igPublishing
-                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
-                            : <><Share2 className="w-4 h-4" /> Publicar IG</>
-                          }
-                        </button>
-                      </div>
-
-                      {/* Fila 3: Generar / Descargar Video */}
-                      <div>
-                        {videoStatus?.status === "done" ? (
-                          <button
-                            onClick={() => downloadFile(`/api/listings/${id}/video`)}
-                            className="w-full py-3 bg-white text-black text-xs font-bold uppercase tracking-widest hover:bg-gray-200 transition-colors flex justify-center items-center gap-2"
-                          >
-                            <Download className="w-4 h-4" /> Descargar Video
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => videoMutation.mutate()}
-                            disabled={videoPolling || videoMutation.isPending}
-                            className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
-                          >
-                            {videoPolling ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Renderizando... {videoStatus?.progress ?? 0}%
-                              </>
-                            ) : (
-                              <><Video className="w-4 h-4" /> Generar Video Reel</>
-                            )}
-                          </button>
-                        )}
-                      </div>
-
                     </div>
 
                   </div>

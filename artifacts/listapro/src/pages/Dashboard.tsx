@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Plus, Search, Home as HomeIcon, BarChart as BarChartIcon, MapPin, Calendar } from "lucide-react";
+import { Plus, Home as HomeIcon, MapPin } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import PropertyCard from "@/components/PropertyCard";
 import { useGetListings } from "@/hooks/useListings";
@@ -18,9 +18,11 @@ import {
 export default function Dashboard() {
   const { data: listings, isLoading, isError } = useGetListings();
 
-  const totalListings = listings?.length || 0;
-  const totalGenerated = listings?.filter(l => l.generatedDescription).length || 0;
-  const mockPublications = totalListings * 2;
+  const hour            = new Date().getHours();
+  const greeting        = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const totalListings   = listings?.length || 0;
+  const totalGenerated  = listings?.filter(l => l.generatedDescription).length || 0;
+  const readyToPublish  = listings?.filter(l => l.instagramCaption && (l.images?.length ?? 0) > 0).length || 0;
 
   // Compute chart data: listings count grouped by city
   const chartData = listings ? Object.entries(
@@ -67,7 +69,7 @@ export default function Dashboard() {
       <main className="pt-32 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 border-b border-white/10 pb-8">
           <div>
-            <h1 className="text-4xl font-sans font-bold text-white mb-2 tracking-tight">Buenos días, Agente.</h1>
+            <h1 className="text-4xl font-sans font-bold text-white mb-2 tracking-tight">{greeting}, Agente.</h1>
             <p className="text-muted-foreground font-light uppercase tracking-widest text-sm">Gestiona tu portafolio de exclusivas.</p>
           </div>
           <Link 
@@ -90,8 +92,8 @@ export default function Dashboard() {
             <p className="text-4xl font-sans font-bold text-white">{totalGenerated}</p>
           </div>
           <div className="bg-[#111] border border-white/10 p-6">
-            <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Publicaciones</h3>
-            <p className="text-4xl font-sans font-bold text-white">{mockPublications}</p>
+            <h3 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Listos para Publicar</h3>
+            <p className="text-4xl font-sans font-bold text-white">{readyToPublish}</p>
           </div>
         </div>
 
