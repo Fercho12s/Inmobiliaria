@@ -29,7 +29,12 @@ app = FastAPI(title="Vendrixa API", version="1.0.0")
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -256,7 +261,6 @@ async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=502, detail=str(e))
 
     return {"success": True, "result": result}
-
 
 
 # ── Publicar Video en Instagram ───────────────────────────────────────────────

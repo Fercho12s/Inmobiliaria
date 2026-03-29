@@ -3,6 +3,7 @@ import { Bed, Bath, Maximize, MapPin, Eye, Sparkles, Trash2 } from "lucide-react
 import type { Listing } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { formatPrice } from "@/lib/utils";
 
 interface PropertyCardProps {
   listing: Partial<Listing>;
@@ -12,15 +13,6 @@ interface PropertyCardProps {
 export default function PropertyCard({ listing, previewMode = false }: PropertyCardProps) {
   const { toast } = useToast();
   const [isDeleted, setIsDeleted] = useState(false);
-
-  const formatPrice = (price?: number, currency: string = "MXN") => {
-    if (!price) return "$0";
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
 
   const handleDelete = (e: React.MouseEvent) => {
     e.preventDefault();

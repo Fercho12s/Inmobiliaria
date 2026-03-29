@@ -4,6 +4,7 @@ import { Plus, Home as HomeIcon, MapPin } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import PropertyCard from "@/components/PropertyCard";
 import { useGetListings } from "@/hooks/useListings";
+import { formatPrice } from "@/lib/utils";
 import { 
   BarChart, 
   Bar, 
@@ -51,15 +52,6 @@ export default function Dashboard() {
     if (diffDays === 1) return "Ayer";
     if (diffDays < 7) return `Hace ${diffDays} días`;
     return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
-  };
-
-  const formatPrice = (price?: number, currency: string = "MXN") => {
-    if (!price) return "$0";
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(price);
   };
 
   return (

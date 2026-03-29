@@ -13,6 +13,7 @@ import {
   getGetListingByIdQueryKey
 } from "@/hooks/useListings";
 import { apiClient } from "@/lib/apiClient";
+import { formatPrice } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "@/components/Navbar";
 import PropertyMap from "@/components/PropertyMap";
@@ -157,15 +158,6 @@ export default function ListingDetail() {
       }
     }
   });
-
-  const formatPrice = (price?: number, currency: string = "MXN") => {
-    if (!price) return "$0";
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: currency,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
 
   const copyToClipboard = (text: string, isIg: boolean) => {
     navigator.clipboard.writeText(text);
