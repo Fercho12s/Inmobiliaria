@@ -110,10 +110,10 @@ export default function ListingDetail() {
       const data = await apiClient.post<{ slides: string[]; count: number }>(
         `/listings/${id}/carousel/generate`, {}
       );
-      // Convertir URLs relativas a absolutas con cache-bust
-      setCarouselSlides(data.slides.map(u => `/api${u.replace("/api", "")}?t=${Date.now()}`));
-    } catch {
-      toast({ title: "Error", description: "No se pudo generar el carrusel.", variant: "destructive" });
+      setCarouselSlides(data.slides.map(u => `${u}?t=${Date.now()}`));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      toast({ title: "Error al generar carrusel", description: msg, variant: "destructive" });
     } finally {
       setCarouselLoading(false);
     }
@@ -700,7 +700,7 @@ export default function ListingDetail() {
                               {/* Preview slides — lista vertical scrollable */}
                               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                                 {carouselSlides.map((url, i) => (
-                                  <div key={i} className="relative border border-white/10 overflow-hidden bg-black">
+                                  <div key={i} className="relative border border-white/10 overflow-hidden bg-black group">
                                     <img
                                       src={url}
                                       alt={`Slide ${i + 1}`}
@@ -712,6 +712,14 @@ export default function ListingDetail() {
                                     <div className="absolute top-2 left-2 bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-widest">
                                       {i + 1} / {carouselSlides.length}
                                     </div>
+                                    <a
+                                      href={url}
+                                      download={`slide-${i + 1}.jpg`}
+                                      className="absolute top-2 right-2 bg-black/70 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      title="Descargar slide"
+                                    >
+                                      <Download className="w-3.5 h-3.5 text-white" />
+                                    </a>
                                   </div>
                                 ))}
                               </div>
@@ -728,7 +736,7 @@ export default function ListingDetail() {
                                 </button>
                                 <button
                                   onClick={handlePublishCarousel}
-                                  disabled={carouselPublishing}
+                                  disabled={carouselPublishing || carouselLoading}
                                   className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
                                 >
                                   {carouselPublishing

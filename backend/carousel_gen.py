@@ -155,7 +155,7 @@ def _slide_cover(listing) -> Image.Image:
         brand_x += _w(draw, ch, f_brand) + 3
 
     # Badge top-right
-    badge_txt = "EN VENTA" if listing.listingType in ("sale", "venta") else "EN RENTA"
+    badge_txt = "EN VENTA" if (listing.listingType or "") in ("sale", "venta") else "EN RENTA"
     bw = _w(draw, badge_txt, f_badge) + 36
     bh = _h(draw, badge_txt, f_badge) + 18
     bx = SIZE[0] - PAD - bw
@@ -163,22 +163,25 @@ def _slide_cover(listing) -> Image.Image:
     draw.text((bx + 18, PAD + 5), badge_txt, font=f_badge, fill=(*WHITE, 255))
 
     # Precio
-    price_txt = f"${listing.price:,.0f}"
-    y_price   = SIZE[1] - PAD - 340
+    price_val  = listing.price or 0
+    currency   = listing.currency or "MXN"
+    price_txt  = f"${price_val:,.0f}" if price_val else "Consultar"
+    y_price    = SIZE[1] - PAD - 340
     _shadow_text(draw, (PAD, y_price), price_txt, f_price, (*WHITE, 255))
     ph = _h(draw, price_txt, f_price)
     cx = PAD + _w(draw, price_txt, f_price) + 12
-    cy = y_price + ph - _h(draw, listing.currency, f_curr) - 8
-    draw.text((cx, cy), listing.currency, font=f_curr, fill=(*GOLD, 255))
+    cy = y_price + ph - _h(draw, currency, f_curr) - 8
+    draw.text((cx, cy), currency, font=f_curr, fill=(*GOLD, 255))
 
     # Título
-    y_title = y_price + ph + 8
-    title   = listing.title[:40] + "..." if len(listing.title) > 40 else listing.title
+    title_raw = listing.title or "Propiedad"
+    title     = title_raw[:40] + "..." if len(title_raw) > 40 else title_raw
+    y_title   = y_price + ph + 8
     _shadow_text(draw, (PAD, y_title), title, f_title, (255, 255, 255, 210))
 
     # Ubicación
     y_loc = y_title + _h(draw, title, f_title) + 10
-    loc   = f"/ {listing.city}, {listing.state}"[:42]
+    loc   = f"/ {listing.city or ''}, {listing.state or ''}"[:42]
     _shadow_text(draw, (PAD, y_loc), loc, f_loc, (255, 255, 255, 180))
 
     # Separador
