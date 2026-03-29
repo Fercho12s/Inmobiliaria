@@ -33,11 +33,40 @@ def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
 
 def _fetch_pil(url_or_path: str) -> Image.Image | None:
     p = Path(url_or_path)
+
+    # Ruta absoluta en disco
     if p.is_absolute() and p.exists():
         try:
             return Image.open(str(p)).convert("RGB")
         except Exception:
             return None
+
+    # Ruta relativa (ej. "generated/enhanced/abc.jpg") — resolver contra CWD
+    if not p.is_absolute():
+        resolved = Path.cwd() / p
+        if resolved.exists():
+            try:
+                return Image.open(str(resolved)).convert("RGB")
+            except Exception:
+                return None
+
+    # URL relativa /uploads/... — buscar el archivo localmente
+    if url_or_path.startswith("/uploads/"):
+        local = Path(os.getenv("OUTPUT_DIR", "./generated")) / "uploads" / url_or_path[len("/uploads/"):]
+        if local.exists():
+            try:
+                return Image.open(str(local)).convert("RGB")
+            except Exception:
+                return None
+        # Fallback: resolver la ruta relativa del OUTPUT_DIR
+        local2 = (Path.cwd() / local)
+        if local2.exists():
+            try:
+                return Image.open(str(local2)).convert("RGB")
+            except Exception:
+                return None
+
+    # URL HTTP/HTTPS
     try:
         r = requests.get(url_or_path, timeout=10)
         r.raise_for_status()

@@ -697,14 +697,21 @@ export default function ListingDetail() {
 
                           {carouselSlides.length > 0 && (
                             <>
-                              {/* Preview grid de slides */}
-                              <div className="grid grid-cols-3 gap-2">
+                              {/* Preview slides — lista vertical scrollable */}
+                              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                                 {carouselSlides.map((url, i) => (
-                                  <div key={i} className="relative border border-white/10 overflow-hidden aspect-square bg-black">
-                                    <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
-                                    <span className="absolute bottom-1 right-1 text-[10px] font-bold text-white/70 bg-black/60 px-1.5 py-0.5">
-                                      {i + 1}
-                                    </span>
+                                  <div key={i} className="relative border border-white/10 overflow-hidden bg-black">
+                                    <img
+                                      src={url}
+                                      alt={`Slide ${i + 1}`}
+                                      className="w-full aspect-square object-cover block"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                    <div className="absolute top-2 left-2 bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-widest">
+                                      {i + 1} / {carouselSlides.length}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
