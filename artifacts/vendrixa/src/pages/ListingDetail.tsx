@@ -374,9 +374,9 @@ export default function ListingDetail() {
           </div>
 
           {/* Columna Derecha: AI Studio */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 min-w-0">
             <div>
-              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl">
+              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <Sparkles className="w-6 h-6 text-white" />
@@ -414,41 +414,41 @@ export default function ListingDetail() {
                       </ul>
                     </div>
 
-                    {/* Tabs */}
-                    <div className="flex border-b border-white/10">
+                    {/* Tabs — scrollable horizontal */}
+                    <div className="flex border-b border-white/10 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                       <button
                         onClick={() => setActiveTab("desc")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'desc' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'desc' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Descripción
                       </button>
                       <button
                         onClick={() => setActiveTab("ig")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'ig' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'ig' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Instagram
                       </button>
                       <button
                         onClick={() => setActiveTab("hooks")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'hooks' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'hooks' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Hooks
                       </button>
                       <button
                         onClick={() => setActiveTab("imagen")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'imagen' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${activeTab === 'imagen' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         <ImageIcon className="w-3 h-3" /> Imagen
                       </button>
                       <button
                         onClick={() => setActiveTab("video")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'video' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${activeTab === 'video' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         <Video className="w-3 h-3" /> Video
                       </button>
                       <button
                         onClick={() => setActiveTab("carrusel")}
-                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'carrusel' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 whitespace-nowrap flex-shrink-0 ${activeTab === 'carrusel' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         <ImageIcon className="w-3 h-3" /> Carrusel
                       </button>
@@ -595,11 +595,11 @@ export default function ListingDetail() {
                           <h4 className="text-xs font-bold uppercase tracking-widest text-white">Video Reel</h4>
                           {videoStatus?.status === "done" ? (
                             <>
-                              <div className="border border-white/10 overflow-hidden bg-black">
+                              <div className="border border-white/10 overflow-hidden bg-black w-full">
                                 <video
                                   src={`/api/listings/${id}/video`}
                                   controls
-                                  className="w-full"
+                                  className="w-full max-w-full block"
                                 />
                               </div>
                               {shortCaption && (
