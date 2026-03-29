@@ -13,7 +13,11 @@
       "Bash(done)",
       "Bash(pip install:*)",
       "Bash(docker-compose up:*)",
-      "Bash(curl -s http://localhost:8000/api/healthz)"
+      "Bash(curl -s http://localhost:8000/api/healthz)",
+      "WebSearch",
+      "WebFetch(domain:docs.upload-post.com)",
+      "Bash(docker compose:*)",
+      "Bash(curl -s -X POST http://localhost:8000/api/listings/1537/instagram/publish)"
     ]
   }
 }

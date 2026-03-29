@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 UPLOAD_URL       = "https://api.upload-post.com/api/upload_photos"
-VIDEO_UPLOAD_URL = "https://api.upload-post.com/api/upload_videos"
+VIDEO_UPLOAD_URL = "https://api.upload-post.com/api/upload"
 
 
 async def publish_video_to_instagram(video_path: str, caption: str) -> dict:
@@ -29,7 +29,7 @@ async def publish_video_to_instagram(video_path: str, caption: str) -> dict:
                 "platform[]": "instagram",
                 "title":      caption,
             },
-            files={"videos[]": ("reel.mp4", video_bytes, "video/mp4")},
+            files={"video": ("reel.mp4", video_bytes, "video/mp4")},
         )
 
     if resp.status_code not in (200, 201, 202):

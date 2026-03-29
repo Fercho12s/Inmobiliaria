@@ -21,7 +21,7 @@ export default function ListingDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const [copiedDesc, setCopiedDesc]   = useState(false);
   const [copiedIg,   setCopiedIg]     = useState(false);
   const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks" | "imagen" | "video">("desc");
@@ -32,11 +32,11 @@ export default function ListingDetail() {
   const [pdfLoading,     setPdfLoading]     = useState(false);
   const [igImgLoading,   setIgImgLoading]   = useState(false);
 
-  // Publica en Instagram
+  // Publica imagen en Instagram
   const publishMutation = useMutation({
     mutationFn: () => apiClient.post(`/listings/${id}/instagram/publish`, {}),
     onSuccess: () => {
-      toast({ title: "Publicado en Instagram", description: "Post enviado exitosamente." });
+      toast({ title: "Imagen publicada en Instagram", description: "Post enviado exitosamente." });
       setIgPublishing(false);
     },
     onError: (err: unknown) => {
@@ -100,6 +100,19 @@ export default function ListingDetail() {
     }
   };
 
+  const handleGenerateAll = () => {
+    generateMutation.mutate({ id: Number(id) });
+    handleGenerateImage();
+    videoMutation.mutate();
+  };
+
+  const handlePublishAll = () => {
+    setIgPublishing(true);
+    publishMutation.mutate();
+    setVideoPublishing(true);
+    videoPublishMutation.mutate();
+  };
+
   const downloadBlob = async (
     url: string,
     filename: string,
@@ -125,7 +138,7 @@ export default function ListingDetail() {
   };
 
   const { data: listing, isLoading, isError } = useGetListingById(Number(id));
-  
+
   const generateMutation = useGenerateListingContent({
     mutation: {
       onSuccess: () => {
@@ -182,11 +195,10 @@ export default function ListingDetail() {
     );
   }
 
-  const mainImage = listing.images && listing.images.length > 0 
-    ? listing.images[0] 
+  const mainImage = listing.images && listing.images.length > 0
+    ? listing.images[0]
     : `${import.meta.env.BASE_URL}images/placeholder-property.png`;
 
-  // Derived content for new tabs
   const shortCaption = listing.instagramCaption ? listing.instagramCaption.split('\n')[0] + "..." : "";
   const longCaption = listing.instagramCaption || "";
   const hashtagsMatch = listing.instagramCaption ? listing.instagramCaption.match(/#\w+/g) : [];
@@ -206,20 +218,23 @@ export default function ListingDetail() {
     `Residencia ${listing.listingType === 'venta' ? 'Aura' : 'Serenity'}`
   ];
 
+  const anyGenerating = generateMutation.isPending || igImgLoading || videoMutation.isPending || videoPolling;
+  const anyPublishing = igPublishing || publishMutation.isPending || videoPublishing || videoPublishMutation.isPending;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="pt-24 lg:pt-32 pb-20 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <Link href="/listados" className="inline-flex items-center gap-2 text-muted-foreground hover:text-white transition-colors mb-8 text-sm font-bold uppercase tracking-widest">
           <ArrowLeft className="w-4 h-4" /> Volver a Listados
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          
+
           {/* Columna Izquierda: Galería y Detalles Físicos */}
           <div className="lg:col-span-7">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="relative aspect-[16/10] overflow-hidden mb-8 border border-white/5"
@@ -240,7 +255,7 @@ export default function ListingDetail() {
               <p className="text-3xl font-sans font-bold text-white mb-6">
                 {formatPrice(listing.price, listing.currency)} <span className="text-xl opacity-80 text-muted-foreground font-sans font-normal">{listing.currency}</span>
               </p>
-              
+
               <div className="flex items-center gap-2 text-muted-foreground mb-8">
                 <MapPin className="w-5 h-5 text-white" />
                 <span className="text-lg font-light">{listing.address}, {listing.city}, {listing.state}</span>
@@ -312,13 +327,13 @@ export default function ListingDetail() {
                       <span className="text-xl text-muted-foreground ml-2">/100</span>
                     </div>
                     <div className="px-4 py-1.5 bg-white/5 border border-white/10 text-white text-[10px] font-bold tracking-widest uppercase">
-                      {listing.priceLevel === 'bajo' ? 'Precio Bajo' : 
-                       listing.priceLevel === 'promedio' ? 'Precio Promedio' : 
+                      {listing.priceLevel === 'bajo' ? 'Precio Bajo' :
+                       listing.priceLevel === 'promedio' ? 'Precio Promedio' :
                        listing.priceLevel === 'alto' ? 'Precio Alto' : 'N/A'}
                     </div>
                   </div>
                   <div className="h-1 w-full bg-white/10 overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-white transition-all duration-1000 ease-out"
                       style={{ width: `${listing.attractivenessScore || 0}%` }}
                     />
@@ -344,22 +359,25 @@ export default function ListingDetail() {
                     <h2 className="text-2xl font-sans font-bold text-white tracking-tight">AI Content Studio</h2>
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-muted-foreground font-light mb-8 leading-relaxed">
                   Utiliza inteligencia artificial para redactar descripciones magnéticas y contenido para redes sociales basado en los datos de la propiedad.
                 </p>
 
-                {(!listing.generatedDescription && !listing.instagramCaption) ? (
-                  <button
-                    onClick={() => generateMutation.mutate({ id: Number(id) })}
-                    disabled={generateMutation.isPending}
-                    className="w-full py-4 bg-white text-black font-bold uppercase tracking-widest flex justify-center items-center gap-3 hover:bg-gray-200 transition-all disabled:opacity-50"
-                  >
-                    {generateMutation.isPending ? "Generando Magia..." : "Generar Contenido"}
-                  </button>
-                ) : (
+                {/* Botón Generar Todo — siempre visible */}
+                <button
+                  onClick={handleGenerateAll}
+                  disabled={anyGenerating}
+                  className="w-full py-4 bg-white text-black font-bold uppercase tracking-widest flex justify-center items-center gap-3 hover:bg-gray-200 transition-all disabled:opacity-50 mb-6"
+                >
+                  {anyGenerating
+                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Generando todo...</>
+                    : <><Sparkles className="w-5 h-5" /> Generar Todo</>}
+                </button>
+
+                {(listing.generatedDescription || listing.instagramCaption) && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    
+
                     {/* Suggested Names */}
                     <div className="bg-[#1A1A1A] border border-white/5 p-4">
                       <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Nombres Sugeridos</h4>
@@ -372,14 +390,14 @@ export default function ListingDetail() {
 
                     {/* Tabs */}
                     <div className="flex border-b border-white/10">
-                      <button 
-                        onClick={() => setActiveTab("desc")} 
+                      <button
+                        onClick={() => setActiveTab("desc")}
                         className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'desc' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Descripción
                       </button>
-                      <button 
-                        onClick={() => setActiveTab("ig")} 
+                      <button
+                        onClick={() => setActiveTab("ig")}
                         className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 ${activeTab === 'ig' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         Instagram
@@ -410,7 +428,7 @@ export default function ListingDetail() {
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="text-xs font-bold uppercase tracking-widest text-white">Descripción Editorial</h4>
-                            <button 
+                            <button
                               onClick={() => copyToClipboard(listing.generatedDescription || '', false)}
                               className="text-muted-foreground hover:text-white transition-colors"
                             >
@@ -420,6 +438,13 @@ export default function ListingDetail() {
                           <div className="bg-background border border-white/5 p-5 text-sm font-light leading-relaxed text-muted-foreground max-h-64 overflow-y-auto">
                             {listing.generatedDescription}
                           </div>
+                          <button
+                            onClick={() => generateMutation.mutate({ id: Number(id) })}
+                            disabled={generateMutation.isPending}
+                            className="mt-3 w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+                          >
+                            {generateMutation.isPending ? "Regenerando..." : "Regenerar"}
+                          </button>
                         </div>
                       )}
 
@@ -429,7 +454,7 @@ export default function ListingDetail() {
                             <h4 className="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
                               <Instagram className="w-4 h-4"/> Captions & Hashtags
                             </h4>
-                            <button 
+                            <button
                               onClick={() => copyToClipboard(listing.instagramCaption || '', true)}
                               className="text-muted-foreground hover:text-white transition-colors"
                             >
@@ -439,13 +464,20 @@ export default function ListingDetail() {
                           <div className="bg-background border border-white/5 p-4 text-sm font-light leading-relaxed text-muted-foreground">
                             <p className="font-bold text-white mb-1 text-xs">Short:</p>
                             <p className="mb-4">{shortCaption}</p>
-                            
+
                             <p className="font-bold text-white mb-1 text-xs">Long:</p>
                             <p className="mb-4 whitespace-pre-wrap">{longCaption}</p>
 
                             <p className="font-bold text-white mb-1 text-xs">Hashtags:</p>
                             <p className="text-white/60">{hashtags}</p>
                           </div>
+                          <button
+                            onClick={() => generateMutation.mutate({ id: Number(id) })}
+                            disabled={generateMutation.isPending}
+                            className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+                          >
+                            {generateMutation.isPending ? "Regenerando..." : "Regenerar"}
+                          </button>
                         </div>
                       )}
 
@@ -462,6 +494,13 @@ export default function ListingDetail() {
                               </div>
                             ))}
                           </div>
+                          <button
+                            onClick={() => generateMutation.mutate({ id: Number(id) })}
+                            disabled={generateMutation.isPending}
+                            className="mt-3 w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+                          >
+                            {generateMutation.isPending ? "Regenerando..." : "Regenerar"}
+                          </button>
                         </div>
                       )}
 
@@ -509,9 +548,10 @@ export default function ListingDetail() {
                               </div>
                               <button
                                 onClick={handleGenerateImage}
-                                className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors"
+                                disabled={igImgLoading}
+                                className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
                               >
-                                Regenerar
+                                {igImgLoading ? "Regenerando..." : "Regenerar"}
                               </button>
                             </>
                           )}
@@ -559,6 +599,13 @@ export default function ListingDetail() {
                                     : <><Share2 className="w-4 h-4" /> Publicar Reel</>}
                                 </button>
                               </div>
+                              <button
+                                onClick={() => videoMutation.mutate()}
+                                disabled={videoPolling || videoMutation.isPending}
+                                className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+                              >
+                                {videoPolling || videoMutation.isPending ? "Iniciando render..." : "Regenerar"}
+                              </button>
                             </>
                           ) : (
                             <>
@@ -596,14 +643,16 @@ export default function ListingDetail() {
                     </div>
 
                     {/* Actions */}
-                    <div className="pt-4 border-t border-white/10">
+                    <div className="pt-4 border-t border-white/10 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <button
-                          onClick={() => generateMutation.mutate({ id: Number(id) })}
-                          disabled={generateMutation.isPending}
-                          className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50"
+                          onClick={handleGenerateAll}
+                          disabled={anyGenerating}
+                          className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
                         >
-                          {generateMutation.isPending ? "..." : "Regenerar"}
+                          {anyGenerating
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                            : "Regenerar Todo"}
                         </button>
                         <button
                           onClick={() => downloadBlob(`/api/listings/${id}/pdf`, `propiedad-${id}.pdf`, setPdfLoading)}
@@ -615,6 +664,15 @@ export default function ListingDetail() {
                             : <><Download className="w-4 h-4" /> PDF</>}
                         </button>
                       </div>
+                      <button
+                        onClick={handlePublishAll}
+                        disabled={anyPublishing}
+                        className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
+                      >
+                        {anyPublishing
+                          ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
+                          : <><Share2 className="w-4 h-4" /> Publicar Todo (Foto + Video)</>}
+                      </button>
                     </div>
 
                   </div>
