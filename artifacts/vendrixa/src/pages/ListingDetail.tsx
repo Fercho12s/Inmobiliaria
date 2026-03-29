@@ -351,8 +351,8 @@ export default function ListingDetail() {
 
           {/* Columna Derecha: AI Studio */}
           <div className="lg:col-span-5">
-            <div className="sticky top-32">
-              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl">
+            <div className="sticky top-24">
+              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl max-h-[calc(100vh-7rem)] overflow-y-auto">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <Sparkles className="w-6 h-6 text-white" />
