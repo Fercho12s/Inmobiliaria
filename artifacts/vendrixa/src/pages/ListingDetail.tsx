@@ -25,13 +25,16 @@ export default function ListingDetail() {
 
   const [copiedDesc, setCopiedDesc]   = useState(false);
   const [copiedIg,   setCopiedIg]     = useState(false);
-  const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks" | "imagen" | "video">("desc");
+  const [activeTab,  setActiveTab]    = useState<"desc" | "ig" | "hooks" | "imagen" | "video" | "carrusel">("desc");
   const [imgPreviewSrc, setImgPreviewSrc] = useState<string | null>(null);
-  const [igPublishing,    setIgPublishing]    = useState(false);
-  const [videoPublishing, setVideoPublishing] = useState(false);
-  const [videoPolling,   setVideoPolling]   = useState(false);
-  const [pdfLoading,     setPdfLoading]     = useState(false);
-  const [igImgLoading,   setIgImgLoading]   = useState(false);
+  const [igPublishing,       setIgPublishing]       = useState(false);
+  const [videoPublishing,    setVideoPublishing]    = useState(false);
+  const [videoPolling,       setVideoPolling]       = useState(false);
+  const [pdfLoading,         setPdfLoading]         = useState(false);
+  const [igImgLoading,       setIgImgLoading]       = useState(false);
+  const [carouselSlides,     setCarouselSlides]     = useState<string[]>([]);
+  const [carouselLoading,    setCarouselLoading]    = useState(false);
+  const [carouselPublishing, setCarouselPublishing] = useState(false);
 
   // Publica imagen en Instagram
   const publishMutation = useMutation({
@@ -101,10 +104,39 @@ export default function ListingDetail() {
     }
   };
 
+  const handleGenerateCarousel = async () => {
+    setCarouselLoading(true);
+    try {
+      const data = await apiClient.post<{ slides: string[]; count: number }>(
+        `/listings/${id}/carousel/generate`, {}
+      );
+      // Convertir URLs relativas a absolutas con cache-bust
+      setCarouselSlides(data.slides.map(u => `/api${u.replace("/api", "")}?t=${Date.now()}`));
+    } catch {
+      toast({ title: "Error", description: "No se pudo generar el carrusel.", variant: "destructive" });
+    } finally {
+      setCarouselLoading(false);
+    }
+  };
+
+  const handlePublishCarousel = async () => {
+    setCarouselPublishing(true);
+    try {
+      await apiClient.post(`/listings/${id}/carousel/publish`, {});
+      toast({ title: "Carrusel publicado en Instagram", description: "Post enviado exitosamente." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al publicar";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setCarouselPublishing(false);
+    }
+  };
+
   const handleGenerateAll = () => {
     generateMutation.mutate({ id: Number(id) });
     handleGenerateImage();
     videoMutation.mutate();
+    handleGenerateCarousel();
   };
 
   const handlePublishAll = () => {
@@ -210,7 +242,7 @@ export default function ListingDetail() {
     `Residencia ${listing.listingType === 'venta' ? 'Aura' : 'Serenity'}`
   ];
 
-  const anyGenerating = generateMutation.isPending || igImgLoading || videoMutation.isPending || videoPolling;
+  const anyGenerating = generateMutation.isPending || igImgLoading || videoMutation.isPending || videoPolling || carouselLoading;
   const anyPublishing = igPublishing || publishMutation.isPending || videoPublishing || videoPublishMutation.isPending;
 
   return (
@@ -343,8 +375,8 @@ export default function ListingDetail() {
 
           {/* Columna Derecha: AI Studio */}
           <div className="lg:col-span-5">
-            <div className="sticky top-24">
-              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl max-h-[calc(100vh-7rem)] overflow-y-auto">
+            <div>
+              <div className="bg-[#111111] border border-white/10 p-8 shadow-xl">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <Sparkles className="w-6 h-6 text-white" />
@@ -356,16 +388,18 @@ export default function ListingDetail() {
                   Utiliza inteligencia artificial para redactar descripciones magnéticas y contenido para redes sociales basado en los datos de la propiedad.
                 </p>
 
-                {/* Botón Generar Todo — siempre visible */}
-                <button
-                  onClick={handleGenerateAll}
-                  disabled={anyGenerating}
-                  className="w-full py-4 bg-white text-black font-bold uppercase tracking-widest flex justify-center items-center gap-3 hover:bg-gray-200 transition-all disabled:opacity-50 mb-6"
-                >
-                  {anyGenerating
-                    ? <><Loader2 className="w-5 h-5 animate-spin" /> Generando todo...</>
-                    : <><Sparkles className="w-5 h-5" /> Generar Todo</>}
-                </button>
+                {/* Botón Generar Todo — solo si aún no hay contenido */}
+                {(!listing.generatedDescription && !listing.instagramCaption) && (
+                  <button
+                    onClick={handleGenerateAll}
+                    disabled={anyGenerating}
+                    className="w-full py-4 bg-white text-black font-bold uppercase tracking-widest flex justify-center items-center gap-3 hover:bg-gray-200 transition-all disabled:opacity-50 mb-6"
+                  >
+                    {anyGenerating
+                      ? <><Loader2 className="w-5 h-5 animate-spin" /> Generando todo...</>
+                      : <><Sparkles className="w-5 h-5" /> Generar Todo</>}
+                  </button>
+                )}
 
                 {(listing.generatedDescription || listing.instagramCaption) && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -411,6 +445,12 @@ export default function ListingDetail() {
                         className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'video' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
                       >
                         <Video className="w-3 h-3" /> Video
+                      </button>
+                      <button
+                        onClick={() => setActiveTab("carrusel")}
+                        className={`px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 flex items-center gap-1 ${activeTab === 'carrusel' ? 'border-white text-white' : 'border-transparent text-muted-foreground hover:text-white'}`}
+                      >
+                        <ImageIcon className="w-3 h-3" /> Carrusel
                       </button>
                     </div>
 
@@ -628,6 +668,67 @@ export default function ListingDetail() {
                                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Iniciando render...</>
                                   : <><Video className="w-4 h-4" /> Generar Video Reel</>}
                               </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {activeTab === 'carrusel' && (
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-white">Carrusel Instagram</h4>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Primer slide: foto + datos de la propiedad. Slides intermedios: fotos adicionales. Último slide: información de contacto.
+                          </p>
+
+                          {carouselSlides.length === 0 && !carouselLoading && (
+                            <button
+                              onClick={handleGenerateCarousel}
+                              className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
+                            >
+                              <ImageIcon className="w-4 h-4" /> Generar Carrusel
+                            </button>
+                          )}
+
+                          {carouselLoading && (
+                            <div className="flex justify-center items-center py-10">
+                              <Loader2 className="w-6 h-6 animate-spin text-white" />
+                              <span className="ml-3 text-sm text-muted-foreground">Generando slides...</span>
+                            </div>
+                          )}
+
+                          {carouselSlides.length > 0 && (
+                            <>
+                              {/* Preview grid de slides */}
+                              <div className="grid grid-cols-3 gap-2">
+                                {carouselSlides.map((url, i) => (
+                                  <div key={i} className="relative border border-white/10 overflow-hidden aspect-square bg-black">
+                                    <img src={url} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
+                                    <span className="absolute bottom-1 right-1 text-[10px] font-bold text-white/70 bg-black/60 px-1.5 py-0.5">
+                                      {i + 1}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  onClick={handleGenerateCarousel}
+                                  disabled={carouselLoading}
+                                  className="py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2 disabled:opacity-50"
+                                >
+                                  {carouselLoading
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Regenerando...</>
+                                    : "Regenerar"}
+                                </button>
+                                <button
+                                  onClick={handlePublishCarousel}
+                                  disabled={carouselPublishing}
+                                  className="py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs font-bold uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex justify-center items-center gap-2"
+                                >
+                                  {carouselPublishing
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
+                                    : <><Share2 className="w-4 h-4" /> Publicar IG</>}
+                                </button>
+                              </div>
                             </>
                           )}
                         </div>

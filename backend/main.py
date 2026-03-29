@@ -16,6 +16,7 @@ import schemas
 import ai
 import pdf_gen
 import image_gen
+import carousel_gen
 import instagram as ig_module
 import video_gen
 import enhance as enhance_module
@@ -278,6 +279,58 @@ async def publish_video_instagram(listing_id: int, db: Session = Depends(get_db)
 
     try:
         result = await ig_module.publish_video_to_instagram(video_path, short)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {"success": True, "result": result}
+
+
+# ── Carrusel ─────────────────────────────────────────────────────────────────
+
+@app.post("/api/listings/{listing_id}/carousel/generate")
+async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
+    listing = _get_or_404(listing_id, db)
+    carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
+
+    enhanced = await enhance_module.enhance_listing_images(
+        listing.images or [], uploads_dir=str(UPLOADS_DIR)
+    )
+    try:
+        paths = carousel_gen.generate_carousel(_WithImages(listing, enhanced), carousel_dir)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando carrusel: {e}")
+
+    # Devolver las URLs de cada slide
+    slide_urls = [f"/api/listings/{listing_id}/carousel/{i + 1}" for i in range(len(paths))]
+    return {"slides": slide_urls, "count": len(paths)}
+
+
+@app.get("/api/listings/{listing_id}/carousel/{slide_num}")
+def get_carousel_slide(listing_id: int, slide_num: int):
+    carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
+    path = os.path.join(carousel_dir, f"slide_{slide_num:02d}.jpg")
+    if not Path(path).exists():
+        raise HTTPException(status_code=404, detail="Slide no generado")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@app.post("/api/listings/{listing_id}/carousel/publish")
+async def publish_carousel(listing_id: int, db: Session = Depends(get_db)):
+    listing      = _get_or_404(listing_id, db)
+    carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
+
+    # Recopilar todos los slides existentes en orden
+    slide_paths = sorted(Path(carousel_dir).glob("slide_*.jpg")) if Path(carousel_dir).exists() else []
+    if not slide_paths:
+        raise HTTPException(status_code=404, detail="Carrusel no generado todavía")
+
+    caption = listing.instagramCaption or listing.title or ""
+    try:
+        result = await ig_module.publish_carousel_to_instagram(
+            [str(p) for p in slide_paths], caption
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

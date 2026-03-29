@@ -38,6 +38,34 @@ async def publish_video_to_instagram(video_path: str, caption: str) -> dict:
     return resp.json()
 
 
+async def publish_carousel_to_instagram(image_paths: list, caption: str) -> dict:
+    api_key = os.getenv("UPLOADPOST_API_KEY", "")
+    user    = os.getenv("UPLOADPOST_USER", "")
+
+    if not api_key:
+        raise ValueError("UPLOADPOST_API_KEY no configurado en .env")
+    if not user:
+        raise ValueError("UPLOADPOST_USER no configurado en .env")
+
+    files = []
+    for path in image_paths:
+        with open(path, "rb") as f:
+            files.append(("photos[]", (f"slide.jpg", f.read(), "image/jpeg")))
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        resp = await client.post(
+            UPLOAD_URL,
+            headers={"Authorization": f"Apikey {api_key}"},
+            data={"user": user, "platform[]": "instagram", "title": caption},
+            files=files,
+        )
+
+    if resp.status_code not in (200, 201, 202):
+        raise Exception(f"Upload Post API error {resp.status_code}: {resp.text[:300]}")
+
+    return resp.json()
+
+
 async def publish_to_instagram(image_path: str, caption: str) -> dict:
     api_key = os.getenv("UPLOADPOST_API_KEY", "")
     user    = os.getenv("UPLOADPOST_USER", "")

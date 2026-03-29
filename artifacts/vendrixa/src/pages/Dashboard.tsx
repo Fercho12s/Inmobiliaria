@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Home as HomeIcon, MapPin } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import PropertyCard from "@/components/PropertyCard";
+import AllPropertiesMap from "@/components/AllPropertiesMap";
 import { useGetListings } from "@/hooks/useListings";
 import { formatPrice } from "@/lib/utils";
 import { 
@@ -161,6 +162,11 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Mapa de todas las propiedades */}
+        {listings && listings.length > 0 && (
+          <AllPropertiesMap listings={listings} />
         )}
 
         {isLoading ? (

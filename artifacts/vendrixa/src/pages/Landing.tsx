@@ -459,6 +459,23 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ═══════════════════════════════════════════════
+          FOOTER CREDIT
+      ═══════════════════════════════════════════════ */}
+      <div className="py-5 border-t border-white/5 text-center" style={{ background: "hsl(220,52%,5%)" }}>
+        <p className="text-[11px] uppercase tracking-[0.3em] font-medium" style={{ color: "hsl(220,25%,28%)" }}>
+          Hecha por{" "}
+          <span
+            className="transition-colors cursor-default"
+            style={{ color: "hsl(42,62%,40%)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "hsl(42,62%,58%)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "hsl(42,62%,40%)")}
+          >
+            Fernando Holguín
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
