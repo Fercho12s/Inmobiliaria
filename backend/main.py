@@ -18,6 +18,7 @@ import pdf_gen
 import image_gen
 import instagram as ig_module
 import video_gen
+import enhance as enhance_module
 from database import Base, engine, get_db
 
 Base.metadata.create_all(bind=engine)
@@ -34,11 +35,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OUTPUT_DIR  = os.getenv("OUTPUT_DIR", "./generated")
-UPLOADS_DIR = Path(OUTPUT_DIR) / "uploads"
+OUTPUT_DIR   = os.getenv("OUTPUT_DIR", "./generated")
+UPLOADS_DIR  = Path(OUTPUT_DIR) / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+
+
+class _WithImages:
+    """Proxy sobre el modelo SQLAlchemy que sobreescribe .images con rutas mejoradas."""
+    def __init__(self, base, images: list):
+        self._base  = base
+        self.images = images
+    def __getattr__(self, name):
+        return getattr(self._base, name)
+
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 ALLOWED_IMAGE_EXTS  = {"jpg", "jpeg", "png", "webp", "gif"}
@@ -158,11 +169,27 @@ def generate_content(listing_id: int, db: Session = Depends(get_db)):
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
 @app.get("/api/listings/{listing_id}/pdf")
-def download_pdf(listing_id: int, db: Session = Depends(get_db)):
+async def download_pdf(
+    listing_id: int,
+    refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
+    db: Session = Depends(get_db),
+):
     listing = _get_or_404(listing_id, db)
     out = os.path.join(OUTPUT_DIR, "pdfs", f"{listing_id}.pdf")
+
+    # Servir desde caché si ya existe (primera carga es la lenta — enhancement)
+    if not refresh and Path(out).exists():
+        return FileResponse(
+            out,
+            media_type="application/pdf",
+            filename=f"vendrixa-propiedad-{listing_id}.pdf",
+        )
+
+    enhanced = await enhance_module.enhance_listing_images(
+        listing.images or [], uploads_dir=str(UPLOADS_DIR)
+    )
     try:
-        pdf_gen.generate_pdf(listing, out)
+        pdf_gen.generate_pdf(_WithImages(listing, enhanced), out)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando PDF: {e}")
     return FileResponse(
@@ -175,11 +202,26 @@ def download_pdf(listing_id: int, db: Session = Depends(get_db)):
 # ── Imagen Instagram ──────────────────────────────────────────────────────────
 
 @app.get("/api/listings/{listing_id}/image/instagram")
-def download_instagram_image(listing_id: int, db: Session = Depends(get_db)):
+async def download_instagram_image(
+    listing_id: int,
+    refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
+    db: Session = Depends(get_db),
+):
     listing = _get_or_404(listing_id, db)
     out = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
+
+    if not refresh and Path(out).exists():
+        return FileResponse(
+            out,
+            media_type="image/jpeg",
+            filename=f"vendrixa-instagram-{listing_id}.jpg",
+        )
+
+    enhanced = await enhance_module.enhance_listing_images(
+        listing.images or [], uploads_dir=str(UPLOADS_DIR)
+    )
     try:
-        image_gen.generate_instagram_image(listing, out)
+        image_gen.generate_instagram_image(_WithImages(listing, enhanced), out)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando imagen: {e}")
     return FileResponse(
@@ -197,14 +239,41 @@ async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
     img_path = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
 
     if not Path(img_path).exists():
+        enhanced = await enhance_module.enhance_listing_images(
+            listing.images or [], uploads_dir=str(UPLOADS_DIR)
+        )
         try:
-            image_gen.generate_instagram_image(listing, img_path)
+            image_gen.generate_instagram_image(_WithImages(listing, enhanced), img_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error generando imagen: {e}")
 
     caption = listing.instagramCaption or listing.title
     try:
         result = await ig_module.publish_to_instagram(img_path, caption)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    return {"success": True, "result": result}
+
+
+
+# ── Publicar Video en Instagram ───────────────────────────────────────────────
+
+@app.post("/api/listings/{listing_id}/video/instagram/publish")
+async def publish_video_instagram(listing_id: int, db: Session = Depends(get_db)):
+    listing    = _get_or_404(listing_id, db)
+    video_path = video_gen.get_video_path(listing_id)
+
+    if not Path(video_path).exists():
+        raise HTTPException(status_code=404, detail="Video no generado todavía")
+
+    caption = listing.instagramCaption or listing.title or ""
+    short   = caption.split("\n")[0] if caption else listing.title
+
+    try:
+        result = await ig_module.publish_video_to_instagram(video_path, short)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
