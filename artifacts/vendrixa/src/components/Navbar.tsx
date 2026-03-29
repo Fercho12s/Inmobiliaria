@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Menu, Plus, Sun, Moon, Settings, LogOut, LogIn, X, Home, Building2, Users, Info } from "lucide-react";
+import { Menu, Sun, Moon, Settings, LogOut, LogIn, X, Home, Building2, PlusSquare, SlidersHorizontal } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,21 +15,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const NAV_LINKS = [
-  { href: "/", label: "Inicio" },
-  { href: "/listados", label: "Propiedades" },
-  { href: "/nuevo-listado", label: "Agentes" },
-  { href: "/configuracion", label: "Nosotros" },
+  { href: "/",              label: "Inicio" },
+  { href: "/listados",      label: "Propiedades" },
+  { href: "/nuevo-listado", label: "Nueva" },
+  { href: "/configuracion", label: "Configuración" },
+];
+
+const MOBILE_LINKS = [
+  { href: "/",              label: "Inicio",          Icon: Home },
+  { href: "/listados",      label: "Propiedades",     Icon: Building2 },
+  { href: "/nuevo-listado", label: "Nueva Propiedad", Icon: PlusSquare },
+  { href: "/configuracion", label: "Configuración",   Icon: SlidersHorizontal },
 ];
 
 export default function Navbar() {
   const [location] = useLocation();
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled]   = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, isAuthenticated, login, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
+  const isLanding  = location === "/" || location === "";
+  const transparent = isLanding && !scrolled;
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
+    const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -37,74 +47,84 @@ export default function Navbar() {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? "bg-background/95 backdrop-blur-md shadow-sm border-b border-border py-3"
-            : "bg-background py-4"
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          transparent
+            ? "bg-transparent py-5"
+            : "bg-background/92 backdrop-blur-lg border-b border-border/60 py-3 shadow-sm"
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 border-2 border-foreground flex items-center justify-center group-hover:bg-foreground transition-colors duration-200">
-              <span className="font-bold text-foreground group-hover:text-background text-xs tracking-widest transition-colors duration-200">
-                VX
-              </span>
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className={`w-8 h-8 flex items-center justify-center border-2 transition-all duration-300 ${
+              transparent
+                ? "border-white/50 group-hover:bg-white/15 group-hover:border-white"
+                : "border-primary/50 group-hover:bg-primary group-hover:border-primary"
+            }`}>
+              <span className={`font-bold text-xs tracking-widest transition-colors duration-300 ${
+                transparent
+                  ? "text-white"
+                  : "text-primary group-hover:text-primary-foreground"
+              }`}>VX</span>
             </div>
-            <span className="font-bold text-foreground tracking-widest text-sm uppercase">
+            <span className={`font-bold tracking-widest text-sm uppercase transition-colors duration-300 ${
+              transparent ? "text-white" : "text-foreground"
+            }`}>
               VENDRIXA
             </span>
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-7">
             {NAV_LINKS.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium tracking-wide transition-colors duration-200 relative group ${
                   location === href
-                    ? "text-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? transparent ? "text-white" : "text-foreground font-semibold"
+                    : transparent ? "text-white/60 hover:text-white" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {label}
+                {location === href && (
+                  <span className={`absolute -bottom-1 left-0 right-0 h-px ${
+                    transparent ? "bg-white/60" : "bg-primary"
+                  }`} />
+                )}
               </Link>
             ))}
           </nav>
 
-          {/* Right actions */}
-          <div className="hidden md:flex items-center gap-4">
-            {/* Theme toggle */}
+          {/* Right: theme + auth */}
+          <div className="hidden md:flex items-center gap-3">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-none text-muted-foreground hover:text-foreground transition-colors"
+              className={`p-2 transition-colors duration-200 ${
+                transparent ? "text-white/65 hover:text-white" : "text-muted-foreground hover:text-foreground"
+              }`}
               aria-label="Alternar tema"
             >
               {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Auth */}
             {isAuthenticated ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 outline-none">
-                    <Avatar className="w-7 h-7 rounded-none border border-border">
+                    <Avatar className="w-7 h-7 rounded-none border border-primary/40">
                       <AvatarImage src={user?.profileImageUrl ?? undefined} />
-                      <AvatarFallback className="rounded-none bg-muted text-[10px] font-bold">
+                      <AvatarFallback className="rounded-none bg-muted text-[10px] font-bold text-primary">
                         {user?.firstName?.charAt(0) || "U"}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-xs font-medium text-muted-foreground hidden lg:block">
-                      {user?.firstName}
-                    </span>
+                    <span className={`text-xs font-medium hidden lg:block transition-colors ${
+                      transparent ? "text-white/70" : "text-muted-foreground"
+                    }`}>{user?.firstName}</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="bg-card border-border rounded-none min-w-[180px] shadow-lg"
-                  align="end"
-                >
+                <DropdownMenuContent className="bg-card border-border rounded-none min-w-[180px] shadow-xl" align="end">
                   <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     Mi Cuenta
                   </DropdownMenuLabel>
@@ -127,28 +147,22 @@ export default function Navbar() {
             ) : (
               <button
                 onClick={login}
-                className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
+                className={`text-xs font-semibold uppercase tracking-widest flex items-center gap-1.5 px-4 py-2 border transition-all duration-200 ${
+                  transparent
+                    ? "border-white/35 text-white hover:bg-white/12"
+                    : "border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground"
+                }`}
               >
-                <LogIn className="w-4 h-4" />
+                <LogIn className="w-3.5 h-3.5" />
                 Ingresar
               </button>
             )}
-
-            {/* CTA */}
-            <Link
-              href="/nuevo-listado"
-              className="px-5 py-2.5 border border-foreground text-foreground font-bold text-xs uppercase tracking-widest hover:bg-foreground hover:text-background transition-all duration-200 flex items-center gap-2"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Crear Listado
-            </Link>
           </div>
 
           {/* Mobile toggle */}
           <button
-            className="md:hidden p-2 text-foreground"
+            className={`md:hidden p-2 transition-colors ${transparent ? "text-white" : "text-foreground"}`}
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Menú"
           >
             {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -159,25 +173,20 @@ export default function Navbar() {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-background pt-20 px-6 pb-8 flex flex-col md:hidden"
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.22 }}
+            className="fixed inset-0 z-40 bg-background/98 backdrop-blur-xl pt-20 px-6 pb-8 flex flex-col md:hidden"
           >
-            <nav className="flex flex-col gap-1 mt-4">
-              {[
-                { href: "/", label: "Inicio", Icon: Home },
-                { href: "/listados", label: "Propiedades", Icon: Building2 },
-                { href: "/nuevo-listado", label: "Agentes", Icon: Users },
-                { href: "/configuracion", label: "Nosotros", Icon: Info },
-              ].map(({ href, label, Icon }) => (
+            <nav className="flex flex-col gap-0.5 mt-2">
+              {MOBILE_LINKS.map(({ href, label, Icon }) => (
                 <Link
                   key={href}
                   href={href}
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-4 py-4 border-b border-border text-base font-medium transition-colors ${
-                    location === href ? "text-foreground" : "text-muted-foreground"
+                    location === href ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -187,11 +196,13 @@ export default function Navbar() {
             </nav>
 
             <div className="mt-8 flex flex-col gap-3">
-              <div className="flex items-center justify-between py-3 border border-border px-4">
-                <span className="text-sm font-medium text-foreground">Tema {theme === "dark" ? "Oscuro" : "Claro"}</span>
+              <div className="flex items-center justify-between py-3.5 border border-border px-4">
+                <span className="text-sm font-medium text-foreground">
+                  Tema {theme === "dark" ? "Oscuro" : "Claro"}
+                </span>
                 <button onClick={toggleTheme} className="p-1.5 bg-muted">
                   {theme === "dark"
-                    ? <Sun className="w-4 h-4 text-foreground" />
+                    ? <Sun className="w-4 h-4 text-primary" />
                     : <Moon className="w-4 h-4 text-foreground" />}
                 </button>
               </div>
@@ -207,21 +218,12 @@ export default function Navbar() {
               ) : (
                 <button
                   onClick={() => { login(); setMobileOpen(false); }}
-                  className="flex items-center gap-3 py-3.5 px-4 border border-border text-foreground text-sm font-medium"
+                  className="flex items-center justify-center gap-2 py-3.5 bg-primary text-primary-foreground text-sm font-bold uppercase tracking-widest"
                 >
                   <LogIn className="w-4 h-4" />
                   Iniciar Sesión
                 </button>
               )}
-
-              <Link
-                href="/nuevo-listado"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center justify-center gap-2 py-3.5 bg-foreground text-background text-sm font-bold uppercase tracking-widest"
-              >
-                <Plus className="w-4 h-4" />
-                Crear Nuevo Listado
-              </Link>
             </div>
           </motion.div>
         )}
