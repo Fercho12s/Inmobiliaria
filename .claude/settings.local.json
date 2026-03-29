@@ -4,7 +4,16 @@
       "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(grep -v \"^ui$\")",
-      "Bash(\"c:/Users/secre/OneDrive/Documents/6to informatica/proyecto persoanl/Inmobiliraria/Design-Guide-Templates/backend/.env.example\")"
+      "Bash(\"c:/Users/secre/OneDrive/Documents/6to informatica/proyecto persoanl/Inmobiliraria/Design-Guide-Templates/backend/.env.example\")",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Bash(for i:*)",
+      "Bash(do sleep:*)",
+      "Bash(break)",
+      "Bash(echo \"Esperando Docker... \\($i\\)\")",
+      "Bash(done)",
+      "Bash(pip install:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(curl -s http://localhost:8000/api/healthz)"
     ]
   }
 }

@@ -32,7 +32,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-ENV REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
+# Wrapper so Chromium runs with --no-sandbox (required inside Docker)
+RUN printf '#!/bin/sh\nexec /usr/bin/chromium --no-sandbox "$@"\n' \
+    > /usr/local/bin/chromium-sandbox-wrapper \
+    && chmod +x /usr/local/bin/chromium-sandbox-wrapper
+
+ENV REMOTION_CHROME_EXECUTABLE=/usr/local/bin/chromium-sandbox-wrapper
 
 WORKDIR /app
 
