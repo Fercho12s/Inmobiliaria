@@ -20,15 +20,45 @@ WHITE = (255, 255, 255)
 BLACK = (0,   0,   0)
 DARK  = (14,  18,  28)
 
-FONT_BOLD    = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-FONT_REGULAR = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_BOLD_PATHS = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",   # Linux/Docker
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",            # Linux alt
+    "C:/Windows/Fonts/arialbd.ttf",                                    # Windows
+    "C:/Windows/Fonts/calibrib.ttf",
+    "/Library/Fonts/Arial Bold.ttf",                                   # macOS
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+]
+_REGULAR_PATHS = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/calibri.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+]
 
+# Cache para no buscar en disco cada llamada
+_font_cache: dict[tuple, ImageFont.FreeTypeFont] = {}
 
-def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
+def _font(paths_or_path, size: int) -> ImageFont.FreeTypeFont:
+    paths = paths_or_path if isinstance(paths_or_path, list) else [paths_or_path]
+    key   = (tuple(paths), size)
+    if key in _font_cache:
+        return _font_cache[key]
+    for p in paths:
+        try:
+            f = ImageFont.truetype(p, size)
+            _font_cache[key] = f
+            return f
+        except Exception:
+            continue
+    # Pillow 10+ acepta size en load_default
     try:
-        return ImageFont.truetype(path, size)
-    except Exception:
-        return ImageFont.load_default()
+        f = ImageFont.load_default(size=size)
+    except TypeError:
+        f = ImageFont.load_default()
+    _font_cache[key] = f
+    return f
 
 
 def _fetch_pil(url_or_path: str) -> Image.Image | None:
@@ -137,14 +167,14 @@ def _slide_cover(listing) -> Image.Image:
     canvas = Image.alpha_composite(bg.convert("RGBA"), overlay)
     draw   = ImageDraw.Draw(canvas)
 
-    f_brand = _font(FONT_BOLD, 28)
-    f_badge = _font(FONT_BOLD, 26)
-    f_price = _font(FONT_BOLD, 88)
-    f_curr  = _font(FONT_BOLD, 32)
-    f_title = _font(FONT_REGULAR, 34)
-    f_loc   = _font(FONT_REGULAR, 26)
-    f_sv    = _font(FONT_BOLD, 52)
-    f_sl    = _font(FONT_REGULAR, 22)
+    f_brand = _font(_BOLD_PATHS, 28)
+    f_badge = _font(_BOLD_PATHS, 26)
+    f_price = _font(_BOLD_PATHS, 88)
+    f_curr  = _font(_BOLD_PATHS, 32)
+    f_title = _font(_REGULAR_PATHS, 34)
+    f_loc   = _font(_REGULAR_PATHS, 26)
+    f_sv    = _font(_BOLD_PATHS, 52)
+    f_sl    = _font(_REGULAR_PATHS, 22)
 
     PAD = 68
 
@@ -207,7 +237,7 @@ def _slide_cover(listing) -> Image.Image:
         x += col_width
 
     # Slide indicator (1 de N) — se actualiza al guardar
-    draw.text((SIZE[0] - PAD - 30, PAD + 4), "1", font=_font(FONT_BOLD, 22), fill=(*WHITE, 120))
+    draw.text((SIZE[0] - PAD - 30, PAD + 4), "1", font=_font(_BOLD_PATHS, 22), fill=(*WHITE, 120))
 
     return canvas.convert("RGB")
 
@@ -233,8 +263,8 @@ def _slide_photo(img_url_or_path: str, slide_num: int, total: int) -> Image.Imag
     canvas = Image.alpha_composite(bg.convert("RGBA"), overlay)
     draw   = ImageDraw.Draw(canvas)
 
-    f_brand = _font(FONT_BOLD, 22)
-    f_num   = _font(FONT_BOLD, 20)
+    f_brand = _font(_BOLD_PATHS, 22)
+    f_num   = _font(_BOLD_PATHS, 20)
 
     _brand_watermark(draw, f_brand)
 
@@ -257,11 +287,11 @@ def _slide_contact(listing, total: int) -> Image.Image:
     for i in range(0, SIZE[1], 80):
         draw.line([(0, i), (SIZE[0], i)], fill=(255, 255, 255, 4), width=1)
 
-    f_vendrixa = _font(FONT_BOLD,    72)
-    f_label    = _font(FONT_BOLD,    22)
-    f_value    = _font(FONT_REGULAR, 38)
-    f_small    = _font(FONT_REGULAR, 26)
-    f_tagline  = _font(FONT_REGULAR, 28)
+    f_vendrixa = _font(_BOLD_PATHS,    72)
+    f_label    = _font(_BOLD_PATHS,    22)
+    f_value    = _font(_REGULAR_PATHS, 38)
+    f_small    = _font(_REGULAR_PATHS, 26)
+    f_tagline  = _font(_REGULAR_PATHS, 28)
 
     # VENDRIXA centrado grande
     brand_chars = "VENDRIXA"
@@ -299,13 +329,13 @@ def _slide_contact(listing, total: int) -> Image.Image:
     draw.line([(140, y_c + 30), (SIZE[0] - 140, y_c + 30)], fill=(*GOLD, 50), width=1)
 
     # Slide indicator
-    f_num = _font(FONT_BOLD, 20)
+    f_num = _font(_BOLD_PATHS, 20)
     indicator = f"{total}/{total}"
     ix = SIZE[0] - 60 - _w(draw, indicator, f_num)
     draw.text((ix, 48), indicator, font=f_num, fill=(255, 255, 255, 120))
 
     # VENDRIXA watermark bottom-left
-    f_brand_sm = _font(FONT_BOLD, 22)
+    f_brand_sm = _font(_BOLD_PATHS, 22)
     _brand_watermark(draw, f_brand_sm)
 
     return bg

@@ -294,15 +294,22 @@ async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
     listing = _get_or_404(listing_id, db)
     carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
 
-    enhanced = await enhance_module.enhance_listing_images(
-        listing.images or [], uploads_dir=str(UPLOADS_DIR)
-    )
-    try:
-        paths = carousel_gen.generate_carousel(_WithImages(listing, enhanced), carousel_dir)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generando carrusel: {e}")
+    # Resolver imágenes a rutas locales absolutas (sin enhancement para evitar fallos de red)
+    images = listing.images or []
+    resolved: list[str] = []
+    for url in images:
+        if url.startswith("/uploads/"):
+            local = UPLOADS_DIR / url[len("/uploads/"):]
+            resolved.append(str(local.resolve()) if local.exists() else url)
+        else:
+            resolved.append(url)
 
-    # Devolver las URLs de cada slide
+    try:
+        paths = carousel_gen.generate_carousel(_WithImages(listing, resolved), carousel_dir)
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Error generando carrusel: {e}\n{traceback.format_exc()}")
+
     slide_urls = [f"/api/listings/{listing_id}/carousel/{i + 1}" for i in range(len(paths))]
     return {"slides": slide_urls, "count": len(paths)}
 
