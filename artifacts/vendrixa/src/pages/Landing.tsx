@@ -5,7 +5,6 @@ import {
   BedDouble, Maximize2, Car, ChevronDown,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
-import RainEffect from "@/components/RainEffect";
 
 /* ─────────────────────────────── DATA ─────────────────────────────── */
 
@@ -107,9 +106,6 @@ export default function Landing() {
           {/* Gradient overlays for readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/70" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent" />
-
-          {/* Rain effect — gotas, relámpagos, gotitas en vidrio */}
-          <RainEffect />
         </div>
 
         {/* Content */}
