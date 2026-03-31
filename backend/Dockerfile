@@ -5,8 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg \
     ca-certificates \
-    # Fuentes para Pillow
+    # Fuentes para Pillow (Liberation ≈ Arial, DejaVu como fallback)
     fonts-liberation \
+    fonts-dejavu-core \
     libfontconfig1 \
     # Chromium + dependencias para Remotion
     chromium \
@@ -22,9 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxrandr2 \
     libgbm1 \
-    libasound2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
+    && (apt-get install -y --no-install-recommends libasound2t64 || apt-get install -y --no-install-recommends libasound2) \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Node.js 20 ────────────────────────────────────────────────────────────────
@@ -41,17 +42,24 @@ ENV REMOTION_CHROME_EXECUTABLE=/usr/local/bin/chromium-sandbox-wrapper
 
 WORKDIR /app
 
+# ── Python venv (evita bug de overlayfs en Docker Desktop para Windows) ───────
+# Instalar en /app/venv en lugar de /usr/local/lib para que los archivos
+# se escriban correctamente en la capa del build.
+ENV VIRTUAL_ENV=/app/venv
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 # ── Python deps ───────────────────────────────────────────────────────────────
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Node deps del proyecto de video (cacheado en capa propia) ─────────────────
-COPY video/package.json ./video/
-RUN cd video && npm install --omit=dev
+COPY video/package.json video/package-lock.json* ./video/
+RUN cd video && npm ci --omit=dev 2>/dev/null || npm install --omit=dev
 
 # ── Código fuente ─────────────────────────────────────────────────────────────
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

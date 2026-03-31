@@ -4,13 +4,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - app_data:/app/data
+      # Todo en un solo bind mount: uploads, imágenes generadas, videos, carrusel y DB
+      - ./generated:/app/data/generated
     env_file:
       - .env
     environment:
-      - DB_PATH=/app/data/vendrixa.db
+      - DB_PATH=/app/data/generated/vendrixa.db
       - OUTPUT_DIR=/app/data/generated
-      - REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
-
-volumes:
-  app_data:
+      - REMOTION_CHROME_EXECUTABLE=/usr/local/bin/chromium-sandbox-wrapper
+      # Para permitir el sitio deployed, agregar en .env: ALLOWED_ORIGINS=https://tu-dominio.com
