@@ -2,7 +2,9 @@
 image_gen.py — Genera imagen 1080x1080 premium para Instagram usando Pillow
 """
 import io
+import os
 from pathlib import Path
+from typing import Optional
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -12,25 +14,73 @@ GOLD   = (201, 169, 110)
 WHITE  = (255, 255, 255)
 BLACK  = (0,   0,   0)
 
-FONT_BOLD    = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-FONT_REGULAR = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_BOLD_PATHS = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/calibrib.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+]
+_REGULAR_PATHS = [
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/calibri.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+]
+
+_font_cache: dict = {}
 
 
-def _font(path: str, size: int) -> ImageFont.FreeTypeFont:
+def _font(paths_or_path, size: int) -> ImageFont.FreeTypeFont:
+    paths = paths_or_path if isinstance(paths_or_path, list) else [paths_or_path]
+    key = (tuple(paths), size)
+    if key in _font_cache:
+        return _font_cache[key]
+    for p in paths:
+        try:
+            f = ImageFont.truetype(p, size)
+            _font_cache[key] = f
+            return f
+        except Exception:
+            continue
     try:
-        return ImageFont.truetype(path, size)
-    except Exception:
-        return ImageFont.load_default()
+        f = ImageFont.load_default(size=size)
+    except TypeError:
+        f = ImageFont.load_default()
+    _font_cache[key] = f
+    return f
 
 
-def _fetch_pil(url_or_path: str) -> Image.Image | None:
+def _fetch_pil(url_or_path: str) -> Optional[Image.Image]:
     p = Path(url_or_path)
     if p.is_absolute() and p.exists():
         try:
             return Image.open(str(p)).convert("RGB")
         except Exception:
             return None
-    # URL HTTP
+    if not p.is_absolute():
+        resolved = Path.cwd() / p
+        if resolved.exists():
+            try:
+                return Image.open(str(resolved)).convert("RGB")
+            except Exception:
+                return None
+    if url_or_path.startswith("/uploads/"):
+        local = Path(os.getenv("OUTPUT_DIR", "./generated")) / "uploads" / url_or_path[len("/uploads/"):]
+        if local.exists():
+            try:
+                return Image.open(str(local)).convert("RGB")
+            except Exception:
+                return None
+        local2 = Path.cwd() / local
+        if local2.exists():
+            try:
+                return Image.open(str(local2)).convert("RGB")
+            except Exception:
+                return None
     try:
         r = requests.get(url_or_path, timeout=10)
         r.raise_for_status()
@@ -104,14 +154,14 @@ def generate_instagram_image(listing, output_path: str):
     draw   = ImageDraw.Draw(canvas)
 
     # ── Fuentes ───────────────────────────────────────────────────────────────
-    f_brand  = _font(FONT_BOLD,    32)
-    f_badge  = _font(FONT_BOLD,    28)
-    f_price  = _font(FONT_BOLD,    96)
-    f_curr   = _font(FONT_BOLD,    36)
-    f_title  = _font(FONT_REGULAR, 36)
-    f_loc    = _font(FONT_REGULAR, 30)
-    f_sv     = _font(FONT_BOLD,    58)
-    f_sl     = _font(FONT_REGULAR, 24)
+    f_brand  = _font(_BOLD_PATHS,    32)
+    f_badge  = _font(_BOLD_PATHS,    28)
+    f_price  = _font(_BOLD_PATHS,    96)
+    f_curr   = _font(_BOLD_PATHS,    36)
+    f_title  = _font(_REGULAR_PATHS, 36)
+    f_loc    = _font(_REGULAR_PATHS, 30)
+    f_sv     = _font(_BOLD_PATHS,    58)
+    f_sl     = _font(_REGULAR_PATHS, 24)
 
     PAD = 72
 
@@ -134,8 +184,9 @@ def generate_instagram_image(listing, output_path: str):
     draw.text((bx + 20, by + 10), badge_txt, font=f_badge, fill=(*WHITE, 255))
 
     # ── Precio hero ───────────────────────────────────────────────────────────
-    price_num  = f"${listing.price:,.0f}"
-    curr_label = listing.currency
+    price_val  = listing.price or 0
+    price_num  = f"${price_val:,.0f}" if price_val else "Consultar"
+    curr_label = listing.currency or "DOP"
 
     y_price = SIZE[1] - PAD - 370
     _shadow_text(draw, (PAD, y_price), price_num, f_price, (*WHITE, 255), offset=4, blur_passes=2)
@@ -149,14 +200,14 @@ def generate_instagram_image(listing, output_path: str):
 
     # ── Título ────────────────────────────────────────────────────────────────
     y_title = y_price + ph + 10
-    title   = listing.title
+    title   = listing.title or "Propiedad"
     if len(title) > 42:
         title = title[:39] + "..."
     _shadow_text(draw, (PAD, y_title), title, f_title, (255, 255, 255, 210), offset=3, blur_passes=2)
 
     # ── Ubicación ─────────────────────────────────────────────────────────────
     y_loc = y_title + _h(draw, title, f_title) + 12
-    loc   = f"{listing.city}, {listing.state}"
+    loc   = f"{listing.city or ''}, {listing.state or ''}".strip(", ")
     if len(loc) > 40:
         loc = loc[:37] + "..."
     _shadow_text(draw, (PAD, y_loc), f"/ {loc}", f_loc, (255, 255, 255, 195), offset=3, blur_passes=1)
@@ -195,7 +246,8 @@ def generate_instagram_image(listing, output_path: str):
     # ── Línea inferior + agente ───────────────────────────────────────────────
     bot_sep = SIZE[1] - PAD - 54
     draw.line([(PAD, bot_sep), (SIZE[0] - PAD, bot_sep)], fill=(255, 255, 255, 45), width=1)
-    agent_line = f"{listing.agentName}  ·  {listing.agentPhone}"
+    agent_parts = [x for x in [listing.agentName, listing.agentPhone] if x]
+    agent_line  = "  ·  ".join(agent_parts) if agent_parts else ""
     draw.text((PAD, bot_sep + 14), agent_line, font=f_sl, fill=(255, 255, 255, 155))
 
     canvas.convert("RGB").save(output_path, "JPEG", quality=97, subsampling=0)

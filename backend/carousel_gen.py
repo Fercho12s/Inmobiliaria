@@ -9,7 +9,7 @@ Estructura:
 import io
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -61,7 +61,7 @@ def _font(paths_or_path, size: int) -> ImageFont.FreeTypeFont:
     return f
 
 
-def _fetch_pil(url_or_path: str) -> Image.Image | None:
+def _fetch_pil(url_or_path: str) -> Optional[Image.Image]:
     p = Path(url_or_path)
 
     # Ruta absoluta en disco
@@ -278,14 +278,18 @@ def _slide_photo(img_url_or_path: str, slide_num: int, total: int) -> Image.Imag
 
 def _slide_contact(listing, total: int) -> Image.Image:
     """Último slide: tarjeta de contacto premium sobre fondo oscuro."""
-    bg   = Image.new("RGB", SIZE, DARK)
-    draw = ImageDraw.Draw(bg)
+    bg   = Image.new("RGBA", SIZE, (*DARK, 255))
 
-    # Líneas decorativas de fondo
+    # Líneas decorativas de fondo (dibujadas en RGBA para que el alpha funcione)
+    grid_overlay = Image.new("RGBA", SIZE, (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grid_overlay)
     for i in range(0, SIZE[0], 80):
-        draw.line([(i, 0), (i, SIZE[1])], fill=(255, 255, 255, 4), width=1)
+        gd.line([(i, 0), (i, SIZE[1])], fill=(255, 255, 255, 12), width=1)
     for i in range(0, SIZE[1], 80):
-        draw.line([(0, i), (SIZE[0], i)], fill=(255, 255, 255, 4), width=1)
+        gd.line([(0, i), (SIZE[0], i)], fill=(255, 255, 255, 12), width=1)
+    bg = Image.alpha_composite(bg, grid_overlay)
+
+    draw = ImageDraw.Draw(bg)
 
     f_vendrixa = _font(_BOLD_PATHS,    72)
     f_label    = _font(_BOLD_PATHS,    22)
@@ -338,7 +342,7 @@ def _slide_contact(listing, total: int) -> Image.Image:
     f_brand_sm = _font(_BOLD_PATHS, 22)
     _brand_watermark(draw, f_brand_sm)
 
-    return bg
+    return bg.convert("RGB")
 
 
 def generate_carousel(listing, output_dir: str) -> List[str]:
