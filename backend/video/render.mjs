@@ -1,5 +1,5 @@
-import { bundle }                        from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { bundle }                                    from "@remotion/bundler";
+import { renderMedia, selectComposition, ensureBrowser } from "@remotion/renderer";
 import path                               from "path";
 import { fileURLToPath }                  from "url";
 import fs                                 from "fs";
@@ -147,9 +147,20 @@ const serveUrl = await bundle({
   onProgress:      (p) => progress(15 + Math.round(p * 0.20)), // 15-35%
 });
 
-// ── Selección de composición ────────────────────────────────────────────────────
+// ── Asegurar navegador (usa binario local si está disponible) ───────────────────
 
 progress(35);
+
+// Callback que evita la descarga automática de Chrome Headless Shell si ya
+// hay un ejecutable configurado, o muestra progreso si hay que descargarlo.
+const onBrowserDownload = chromePath
+  ? () => { log("Using provided browser, skipping download"); return { version: "custom" }; }
+  : (info) => { log(`Downloading browser: ${info.url}`); };
+
+await ensureBrowser({ browserExecutable: chromePath ?? null, logLevel: "warn", onBrowserDownload });
+
+// ── Selección de composición ────────────────────────────────────────────────────
+
 log("Selecting composition...");
 
 const chromiumOptions = {
