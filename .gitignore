@@ -4,8 +4,19 @@
 .env
 backend/.env
 backend/vendrixa.db
+backend/vendrixa.db-shm
+backend/vendrixa.db-wal
 backend/__pycache__/
 backend/*.pyc
+
+# Archivos generados en runtime (videos, imágenes, carruseles, PDFs)
+backend/generated/
+backend/video/generated/
+backend/video/public/slides/
+backend/video/render.log
+
+# Claude local settings
+.claude/
 
 # compiled output
 dist
