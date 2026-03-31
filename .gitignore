@@ -10,7 +10,8 @@ backend/__pycache__/
 backend/*.pyc
 
 # Archivos generados en runtime (videos, imágenes, carruseles, PDFs)
-backend/generated/
+backend/generated/*
+!backend/generated/.gitkeep
 backend/video/generated/
 backend/video/public/slides/
 backend/video/render.log
