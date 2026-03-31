@@ -48,6 +48,13 @@ OUTPUT_DIR   = os.getenv("OUTPUT_DIR", "./generated")
 UPLOADS_DIR  = Path(OUTPUT_DIR) / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def _listing_dir(listing_id: int) -> Path:
+    """Carpeta exclusiva para todos los archivos generados de una propiedad."""
+    d = Path(OUTPUT_DIR) / str(listing_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 
@@ -76,6 +83,23 @@ def _get_or_404(listing_id: int, db: Session):
 @app.get("/api/healthz")
 def health():
     return {"status": "ok"}
+
+
+# ── Assets — qué archivos ya fueron generados para una propiedad ─────────────
+
+@app.get("/api/listings/{listing_id}/assets")
+def get_listing_assets(listing_id: int, db: Session = Depends(get_db)):
+    _get_or_404(listing_id, db)
+    base         = Path(OUTPUT_DIR) / str(listing_id)
+    carousel_dir = base / "carousel"
+    carousel_slides = sorted(carousel_dir.glob("slide_*.jpg")) if carousel_dir.exists() else []
+    video_status    = video_gen.get_status(listing_id)
+    return {
+        "image":    (base / "instagram.jpg").exists(),
+        "carousel": {"exists": len(carousel_slides) > 0, "count": len(carousel_slides)},
+        "video":    {"exists": (base / "video.mp4").exists(), "status": video_status.get("status", "idle")},
+        "pdf":      (base / "pdf.pdf").exists(),
+    }
 
 
 # ── Geocoding proxy (evita CORS de Nominatim en el browser) ──────────────────
@@ -197,9 +221,8 @@ async def download_pdf(
     db: Session = Depends(get_db),
 ):
     listing = _get_or_404(listing_id, db)
-    out = os.path.join(OUTPUT_DIR, "pdfs", f"{listing_id}.pdf")
+    out = str(_listing_dir(listing_id) / "pdf.pdf")
 
-    # Servir desde caché si ya existe (primera carga es la lenta — enhancement)
     if not refresh and Path(out).exists():
         return FileResponse(
             out,
@@ -230,7 +253,7 @@ async def download_instagram_image(
     db: Session = Depends(get_db),
 ):
     listing = _get_or_404(listing_id, db)
-    out = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
+    out = str(_listing_dir(listing_id) / "instagram.jpg")
 
     if not refresh and Path(out).exists():
         return FileResponse(
@@ -258,7 +281,7 @@ async def download_instagram_image(
 @app.post("/api/listings/{listing_id}/instagram/publish")
 async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
     listing  = _get_or_404(listing_id, db)
-    img_path = os.path.join(OUTPUT_DIR, "images", f"{listing_id}_instagram.jpg")
+    img_path = str(_listing_dir(listing_id) / "instagram.jpg")
 
     if not Path(img_path).exists():
         enhanced = await enhance_module.enhance_listing_images(
@@ -309,6 +332,10 @@ async def publish_video_instagram(listing_id: int, db: Session = Depends(get_db)
 async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
     listing = _get_or_404(listing_id, db)
     carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
+
+    # Borrar carrusel anterior si existe
+    if Path(carousel_dir).exists():
+        shutil.rmtree(carousel_dir)
 
     # Resolver imágenes a rutas locales absolutas (sin enhancement para evitar fallos de red)
     images = listing.images or []
@@ -375,6 +402,11 @@ async def generate_video(
 
     if status.get("status") == "rendering":
         return {"status": "rendering", "progress": status.get("progress", 0)}
+
+    # Borrar video anterior para que el status vuelva a "idle" durante el render
+    old_video = Path(video_gen.get_video_path(listing_id))
+    if old_video.exists():
+        old_video.unlink()
 
     listing_data = {
         "title":        listing.title,
