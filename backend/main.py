@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 
+import httpx
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -28,6 +29,7 @@ app = FastAPI(title="Vendrixa API", version="1.0.0")
 
 # ── Middleware ────────────────────────────────────────────────────────────────
 app.add_middleware(GZipMiddleware, minimum_size=500)
+_extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -35,6 +37,7 @@ app.add_middleware(
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        *_extra_origins,
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -73,6 +76,19 @@ def _get_or_404(listing_id: int, db: Session):
 @app.get("/api/healthz")
 def health():
     return {"status": "ok"}
+
+
+# ── Geocoding proxy (evita CORS de Nominatim en el browser) ──────────────────
+
+@app.get("/api/geocode")
+async def geocode(q: str = Query(..., description="Ciudad o dirección a buscar")):
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q, "format": "json", "limit": 1},
+            headers={"User-Agent": "Vendrixa/1.0 (real-estate-app)"},
+        )
+    return r.json()
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
