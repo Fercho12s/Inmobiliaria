@@ -41,7 +41,7 @@ export default function AllPropertiesMap({ listings }: AllPropertiesMapProps) {
       try {
         const query = listing.state ? `${listing.city}, ${listing.state}` : listing.city;
         const r     = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`
+          `/api/geocode?q=${encodeURIComponent(query)}`
         );
         const data = await r.json();
         if (!data?.length || !mapRef.current) return;

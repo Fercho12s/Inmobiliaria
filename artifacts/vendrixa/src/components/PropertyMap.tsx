@@ -27,9 +27,7 @@ export default function PropertyMap({ city }: PropertyMapProps) {
 
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-            city
-          )}&format=json&limit=1`
+          `/api/geocode?q=${encodeURIComponent(city)}`
         );
         const data = await response.json();
         if (data && data.length > 0) {
