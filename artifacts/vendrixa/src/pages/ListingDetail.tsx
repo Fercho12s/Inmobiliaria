@@ -36,6 +36,30 @@ export default function ListingDetail() {
   const [carouselLoading,    setCarouselLoading]    = useState(false);
   const [carouselPublishing, setCarouselPublishing] = useState(false);
 
+  // Carga los archivos ya generados al abrir la página
+  const { data: existingAssets } = useQuery({
+    queryKey: ["assets", id],
+    queryFn:  () => apiClient.get<{
+      image: boolean;
+      carousel: { exists: boolean; count: number };
+      video: { exists: boolean; status: string };
+      pdf: boolean;
+    }>(`/listings/${id}/assets`),
+    enabled:   !!id,
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    if (!existingAssets) return;
+    if (existingAssets.image && !imgPreviewSrc)
+      setImgPreviewSrc(`/api/listings/${id}/image/instagram`);
+    if (existingAssets.carousel.exists && existingAssets.carousel.count > 0 && carouselSlides.length === 0)
+      setCarouselSlides(Array.from({ length: existingAssets.carousel.count }, (_, i) => `/api/listings/${id}/carousel/${i + 1}`));
+    if (existingAssets.video.status === "done")
+      setVideoPolling(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAssets]);
+
   // Publica imagen en Instagram
   const publishMutation = useMutation({
     mutationFn: () => apiClient.post(`/listings/${id}/instagram/publish`, {}),
@@ -71,11 +95,11 @@ export default function ListingDetail() {
     onError: () => toast({ title: "Error", description: "No se pudo iniciar el render.", variant: "destructive" }),
   });
 
-  // Polling del estado del video
+  // Estado del video: siempre se consulta al montar, hace polling durante el render
   const { data: videoStatus } = useQuery({
     queryKey: ["video-status", id],
     queryFn:  () => apiClient.get<{ status: string; progress: number; error?: string }>(`/listings/${id}/video/status`),
-    enabled:  videoPolling,
+    enabled:  !!id,
     refetchInterval: videoPolling ? 2000 : false,
   });
 
@@ -90,10 +114,11 @@ export default function ListingDetail() {
     }
   }, [videoStatus]);
 
-  const handleGenerateImage = async () => {
+  const handleGenerateImage = async (refresh = false) => {
     setIgImgLoading(true);
     try {
-      const r = await fetch(`/api/listings/${id}/image/instagram`);
+      const url = `/api/listings/${id}/image/instagram${refresh ? "?refresh=true" : ""}`;
+      const r = await fetch(url);
       if (!r.ok) throw new Error(`Error ${r.status}`);
       const blob = await r.blob();
       setImgPreviewSrc(URL.createObjectURL(blob));
@@ -144,6 +169,7 @@ export default function ListingDetail() {
     publishMutation.mutate();
     setVideoPublishing(true);
     videoPublishMutation.mutate();
+    handlePublishCarousel();
   };
 
   const downloadBlob = async (
@@ -243,7 +269,7 @@ export default function ListingDetail() {
   ];
 
   const anyGenerating = generateMutation.isPending || igImgLoading || videoMutation.isPending || videoPolling || carouselLoading;
-  const anyPublishing = igPublishing || publishMutation.isPending || videoPublishing || videoPublishMutation.isPending;
+  const anyPublishing = igPublishing || publishMutation.isPending || videoPublishing || videoPublishMutation.isPending || carouselPublishing;
 
   return (
     <div className="min-h-screen bg-background">
@@ -541,7 +567,7 @@ export default function ListingDetail() {
                           <h4 className="text-xs font-bold uppercase tracking-widest text-white">Imagen Instagram 1080×1080</h4>
                           {!imgPreviewSrc && !igImgLoading && (
                             <button
-                              onClick={handleGenerateImage}
+                              onClick={() => handleGenerateImage()}
                               className="w-full py-3 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/5 transition-colors flex justify-center items-center gap-2"
                             >
                               <ImageIcon className="w-4 h-4" /> Generar Imagen
@@ -579,7 +605,7 @@ export default function ListingDetail() {
                                 </button>
                               </div>
                               <button
-                                onClick={handleGenerateImage}
+                                onClick={() => handleGenerateImage(true)}
                                 disabled={igImgLoading}
                                 className="w-full py-2 border border-white/10 text-muted-foreground text-xs font-bold uppercase tracking-widest hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
                               >
@@ -779,7 +805,7 @@ export default function ListingDetail() {
                       >
                         {anyPublishing
                           ? <><Loader2 className="w-4 h-4 animate-spin" /> Publicando...</>
-                          : <><Share2 className="w-4 h-4" /> Publicar Todo (Foto + Video)</>}
+                          : <><Share2 className="w-4 h-4" /> Publicar todo</>}
                       </button>
                     </div>
 
