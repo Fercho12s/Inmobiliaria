@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Bed, Bath, Maximize, MapPin, Eye, Sparkles, Trash2 } from "lucide-react";
+import { Bed, Bath, Maximize, MapPin, Eye, Sparkles, Trash2, Car } from "lucide-react";
 import type { Listing } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -84,7 +84,7 @@ export default function PropertyCard({ listing, previewMode = false }: PropertyC
           </span>
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/5 pt-4">
+        <div className="flex items-center gap-4 border-t border-white/5 pt-4 flex-wrap">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Bed className="w-4 h-4 text-white" />
             <span className="text-sm font-medium">{listing.bedrooms || 0}</span>
@@ -93,7 +93,13 @@ export default function PropertyCard({ listing, previewMode = false }: PropertyC
             <Bath className="w-4 h-4 text-white" />
             <span className="text-sm font-medium">{listing.bathrooms || 0}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
+          {(listing.parkingSpots ?? 0) > 0 && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Car className="w-4 h-4 text-white" />
+              <span className="text-sm font-medium">{listing.parkingSpots}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-muted-foreground ml-auto">
             <Maximize className="w-4 h-4 text-white" />
             <span className="text-sm font-medium">{listing.area || 0} {listing.areaUnit || "m²"}</span>
           </div>

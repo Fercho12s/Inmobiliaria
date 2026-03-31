@@ -11,6 +11,10 @@ class CreateListingInput(BaseModel):
     propertyType: str
     bedrooms: int = 0
     bathrooms: float = 0
+    halfBathrooms: int = 0
+    parkingSpots: int = 0
+    floorLevel: Optional[int] = None
+    floors: Optional[int] = None
     area: float
     areaUnit: str = "m2"
     address: str

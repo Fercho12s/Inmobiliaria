@@ -4,7 +4,8 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft, Bed, Bath, Maximize, MapPin, Sparkles,
   Copy, Download, Check, Instagram, Phone, Mail,
-  Image as ImageIcon, Video, Loader2, Share2
+  Image as ImageIcon, Video, Loader2, Share2,
+  Car, Toilet, Layers
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -326,6 +327,42 @@ export default function ListingDetail() {
                     <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Baños</p>
                   </div>
                 </div>
+                {(listing.halfBathrooms ?? 0) > 0 && (
+                  <div className="flex items-center gap-3">
+                    <Toilet className="w-6 h-6 text-white" />
+                    <div>
+                      <p className="text-white text-xl font-bold">{listing.halfBathrooms}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Medios Baños</p>
+                    </div>
+                  </div>
+                )}
+                {(listing.parkingSpots ?? 0) > 0 && (
+                  <div className="flex items-center gap-3">
+                    <Car className="w-6 h-6 text-white" />
+                    <div>
+                      <p className="text-white text-xl font-bold">{listing.parkingSpots}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Parqueo</p>
+                    </div>
+                  </div>
+                )}
+                {listing.floorLevel != null && (
+                  <div className="flex items-center gap-3">
+                    <Layers className="w-6 h-6 text-white" />
+                    <div>
+                      <p className="text-white text-xl font-bold">{listing.floorLevel}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Nivel</p>
+                    </div>
+                  </div>
+                )}
+                {listing.floors != null && (
+                  <div className="flex items-center gap-3">
+                    <Layers className="w-6 h-6 text-white" />
+                    <div>
+                      <p className="text-white text-xl font-bold">{listing.floors}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Pisos</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <Maximize className="w-6 h-6 text-white" />
                   <div>

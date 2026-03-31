@@ -10,6 +10,10 @@ export interface Listing {
   propertyType: string;
   bedrooms: number;
   bathrooms: number;
+  halfBathrooms?: number;
+  parkingSpots?: number;
+  floorLevel?: number;
+  floors?: number;
   area: number;
   areaUnit: string;
   address: string;
@@ -37,6 +41,10 @@ export interface CreateListingInput {
   propertyType: string;
   bedrooms: number;
   bathrooms: number;
+  halfBathrooms?: number;
+  parkingSpots?: number;
+  floorLevel?: number;
+  floors?: number;
   area: number;
   areaUnit: string;
   address: string;

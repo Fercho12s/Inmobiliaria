@@ -21,6 +21,10 @@ const formSchema = z.object({
   propertyType: z.string().min(1, "Tipo requerido"),
   bedrooms: z.coerce.number().min(0),
   bathrooms: z.coerce.number().min(0),
+  halfBathrooms: z.coerce.number().min(0).default(0),
+  parkingSpots: z.coerce.number().min(0).default(0),
+  floorLevel: z.coerce.number().min(0).optional(),
+  floors: z.coerce.number().min(0).optional(),
   area: z.coerce.number().min(1, "Área requerida"),
   areaUnit: z.string().default("m2"),
   address: z.string().min(5, "Dirección requerida"),
@@ -108,6 +112,8 @@ export default function NewListing() {
       amenities: [],
       bedrooms: 0,
       bathrooms: 0,
+      halfBathrooms: 0,
+      parkingSpots: 0,
       area: 0
     },
     mode: "onChange" // For real-time updates
@@ -283,8 +289,16 @@ export default function NewListing() {
                     <input type="number" {...form.register("bedrooms")} className={inputClasses} />
                   </div>
                   <div>
-                    <label className={labelClasses}>Baños</label>
+                    <label className={labelClasses}>Baños Completos</label>
                     <input type="number" step="0.5" {...form.register("bathrooms")} className={inputClasses} />
+                  </div>
+                  <div>
+                    <label className={labelClasses}>Medios Baños</label>
+                    <input type="number" {...form.register("halfBathrooms")} className={inputClasses} />
+                  </div>
+                  <div>
+                    <label className={labelClasses}>Parqueo</label>
+                    <input type="number" {...form.register("parkingSpots")} className={inputClasses} />
                   </div>
                   <div>
                     <label className={labelClasses}>Área</label>
@@ -298,6 +312,18 @@ export default function NewListing() {
                       <option value="hectáreas">ha</option>
                     </select>
                   </div>
+                  {["Departamento", "Penthouse"].includes(formValues.propertyType) && (
+                    <div>
+                      <label className={labelClasses}>Nivel de Piso</label>
+                      <input type="number" {...form.register("floorLevel")} className={inputClasses} placeholder="Ej. 5" />
+                    </div>
+                  )}
+                  {["Casa", "Villa"].includes(formValues.propertyType) && (
+                    <div>
+                      <label className={labelClasses}>Pisos</label>
+                      <input type="number" {...form.register("floors")} className={inputClasses} placeholder="Ej. 2" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-8">
