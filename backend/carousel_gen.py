@@ -378,4 +378,4 @@ def generate_carousel(listing, output_dir: str) -> List[str]:
 
 
 def get_carousel_dir(listing_id: int, output_dir: str) -> str:
-    return os.path.join(output_dir, "carousels", str(listing_id))
+    return os.path.join(output_dir, str(listing_id), "carousel")

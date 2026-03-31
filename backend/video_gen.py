@@ -13,13 +13,18 @@ _status: dict[int, dict] = {}
 
 def get_video_path(listing_id: int) -> str:
     out_dir = os.getenv("OUTPUT_DIR", "./generated")
-    path = os.path.join(out_dir, "videos", f"{listing_id}.mp4")
+    path = os.path.join(out_dir, str(listing_id), "video.mp4")
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_status(listing_id: int) -> dict:
-    return _status.get(listing_id, {"status": "idle"})
+    if listing_id in _status:
+        return _status[listing_id]
+    # Persistencia: si el archivo existe en disco el video ya fue generado
+    if Path(get_video_path(listing_id)).exists():
+        return {"status": "done", "progress": 100}
+    return {"status": "idle"}
 
 
 async def render_video(listing_id: int, listing_data: dict):
