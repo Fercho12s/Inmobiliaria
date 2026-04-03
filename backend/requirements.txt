@@ -9,3 +9,4 @@ Pillow==11.1.0
 httpx==0.28.1
 requests==2.32.3
 python-multipart==0.0.20
+psycopg2-binary==2.9.9
