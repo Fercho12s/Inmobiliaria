@@ -21,6 +21,7 @@ import carousel_gen
 import instagram as ig_module
 import video_gen
 import enhance as enhance_module
+import storage
 from database import Base, engine, get_db
 
 Base.metadata.create_all(bind=engine)
@@ -92,13 +93,25 @@ def get_listing_assets(listing_id: int, db: Session = Depends(get_db)):
     _get_or_404(listing_id, db)
     base         = Path(OUTPUT_DIR) / str(listing_id)
     carousel_dir = base / "carousel"
-    carousel_slides = sorted(carousel_dir.glob("slide_*.jpg")) if carousel_dir.exists() else []
-    video_status    = video_gen.get_status(listing_id)
+    video_status = video_gen.get_status(listing_id)
+
+    if storage.enabled():
+        img_exists      = storage.exists(f"{listing_id}/instagram.jpg")
+        pdf_exists      = storage.exists(f"{listing_id}/pdf.pdf")
+        video_exists    = storage.exists(f"{listing_id}/video.mp4")
+        carousel_count  = sum(1 for i in range(1, 50) if storage.exists(f"{listing_id}/carousel/slide_{i:02d}.jpg"))
+    else:
+        img_exists     = (base / "instagram.jpg").exists()
+        pdf_exists     = (base / "pdf.pdf").exists()
+        video_exists   = (base / "video.mp4").exists()
+        carousel_slides = sorted(carousel_dir.glob("slide_*.jpg")) if carousel_dir.exists() else []
+        carousel_count  = len(carousel_slides)
+
     return {
-        "image":    (base / "instagram.jpg").exists(),
-        "carousel": {"exists": len(carousel_slides) > 0, "count": len(carousel_slides)},
-        "video":    {"exists": (base / "video.mp4").exists(), "status": video_status.get("status", "idle")},
-        "pdf":      (base / "pdf.pdf").exists(),
+        "image":    img_exists,
+        "carousel": {"exists": carousel_count > 0, "count": carousel_count},
+        "video":    {"exists": video_exists, "status": video_status.get("status", "idle")},
+        "pdf":      pdf_exists,
     }
 
 
@@ -143,7 +156,8 @@ async def upload_image(file: UploadFile = File(...)):
     dest = UPLOADS_DIR / filename
     with dest.open("wb") as buf:
         shutil.copyfileobj(file.file, buf)
-    return {"url": f"/uploads/{filename}"}
+    remote_url = storage.upload(str(dest), f"uploads/{filename}")
+    return {"url": remote_url or f"/uploads/{filename}"}
 
 
 # ── Listings CRUD ─────────────────────────────────────────────────────────────
@@ -220,15 +234,16 @@ async def download_pdf(
     refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
     db: Session = Depends(get_db),
 ):
-    listing = _get_or_404(listing_id, db)
-    out = str(_listing_dir(listing_id) / "pdf.pdf")
+    listing    = _get_or_404(listing_id, db)
+    remote_key = f"{listing_id}/pdf.pdf"
+    out        = str(_listing_dir(listing_id) / "pdf.pdf")
 
-    if not refresh and Path(out).exists():
-        return FileResponse(
-            out,
-            media_type="application/pdf",
-            filename=f"vendrixa-propiedad-{listing_id}.pdf",
-        )
+    if not refresh:
+        if storage.enabled() and storage.exists(remote_key):
+            return RedirectResponse(storage.public_url(remote_key))
+        if not storage.enabled() and Path(out).exists():
+            return FileResponse(out, media_type="application/pdf",
+                                filename=f"vendrixa-propiedad-{listing_id}.pdf")
 
     enhanced = await enhance_module.enhance_listing_images(
         listing.images or [], uploads_dir=str(UPLOADS_DIR)
@@ -237,11 +252,12 @@ async def download_pdf(
         pdf_gen.generate_pdf(_WithImages(listing, enhanced), out)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando PDF: {e}")
-    return FileResponse(
-        out,
-        media_type="application/pdf",
-        filename=f"vendrixa-propiedad-{listing_id}.pdf",
-    )
+
+    remote_url = storage.upload(out, remote_key)
+    if remote_url:
+        return RedirectResponse(remote_url)
+    return FileResponse(out, media_type="application/pdf",
+                        filename=f"vendrixa-propiedad-{listing_id}.pdf")
 
 
 # ── Imagen Instagram ──────────────────────────────────────────────────────────
@@ -252,15 +268,16 @@ async def download_instagram_image(
     refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
     db: Session = Depends(get_db),
 ):
-    listing = _get_or_404(listing_id, db)
-    out = str(_listing_dir(listing_id) / "instagram.jpg")
+    listing    = _get_or_404(listing_id, db)
+    remote_key = f"{listing_id}/instagram.jpg"
+    out        = str(_listing_dir(listing_id) / "instagram.jpg")
 
-    if not refresh and Path(out).exists():
-        return FileResponse(
-            out,
-            media_type="image/jpeg",
-            filename=f"vendrixa-instagram-{listing_id}.jpg",
-        )
+    if not refresh:
+        if storage.enabled() and storage.exists(remote_key):
+            return RedirectResponse(storage.public_url(remote_key))
+        if not storage.enabled() and Path(out).exists():
+            return FileResponse(out, media_type="image/jpeg",
+                                filename=f"vendrixa-instagram-{listing_id}.jpg")
 
     enhanced = await enhance_module.enhance_listing_images(
         listing.images or [], uploads_dir=str(UPLOADS_DIR)
@@ -269,11 +286,12 @@ async def download_instagram_image(
         image_gen.generate_instagram_image(_WithImages(listing, enhanced), out)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando imagen: {e}")
-    return FileResponse(
-        out,
-        media_type="image/jpeg",
-        filename=f"vendrixa-instagram-{listing_id}.jpg",
-    )
+
+    remote_url = storage.upload(out, remote_key)
+    if remote_url:
+        return RedirectResponse(remote_url)
+    return FileResponse(out, media_type="image/jpeg",
+                        filename=f"vendrixa-instagram-{listing_id}.jpg")
 
 
 # ── Publicar en Instagram ─────────────────────────────────────────────────────
@@ -353,12 +371,20 @@ async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
         import traceback
         raise HTTPException(status_code=500, detail=f"Error generando carrusel: {e}\n{traceback.format_exc()}")
 
+    for i, p in enumerate(paths):
+        storage.upload(str(p), f"{listing_id}/carousel/slide_{i + 1:02d}.jpg")
+
     slide_urls = [f"/api/listings/{listing_id}/carousel/{i + 1}" for i in range(len(paths))]
     return {"slides": slide_urls, "count": len(paths)}
 
 
 @app.get("/api/listings/{listing_id}/carousel/{slide_num}")
 def get_carousel_slide(listing_id: int, slide_num: int):
+    remote_key = f"{listing_id}/carousel/slide_{slide_num:02d}.jpg"
+    if storage.enabled():
+        if storage.exists(remote_key):
+            return RedirectResponse(storage.public_url(remote_key))
+        raise HTTPException(status_code=404, detail="Slide no generado")
     carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
     path = os.path.join(carousel_dir, f"slide_{slide_num:02d}.jpg")
     if not Path(path).exists():
