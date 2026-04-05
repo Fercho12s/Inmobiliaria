@@ -89,3 +89,32 @@ def seed_admin(db: Session) -> None:
             is_active=True,
         ))
         db.commit()
+
+
+def seed_demo(db: Session) -> None:
+    """
+    - Assign all orphaned listings (no owner, no guest session) to the admin.
+    - Mark the oldest listing as the demo listing (title → 'Casa demo') if none exists yet.
+    """
+    admin_email = os.getenv("ADMIN_EMAIL", "admin@vendrixa.com")
+    admin = db.query(models.User).filter(models.User.email == admin_email).first()
+    if not admin:
+        return
+
+    # Assign orphaned listings to admin
+    orphans = db.query(models.Listing).filter(
+        models.Listing.owner_id == None,       # noqa: E711
+        models.Listing.guest_session_id == None,  # noqa: E711
+    ).all()
+    for listing in orphans:
+        listing.owner_id = admin.id
+
+    # Ensure exactly one demo listing exists
+    demo = db.query(models.Listing).filter(models.Listing.is_demo == True).first()  # noqa: E712
+    if not demo:
+        oldest = db.query(models.Listing).order_by(models.Listing.id.asc()).first()
+        if oldest:
+            oldest.is_demo = True
+            oldest.title   = "Casa demo"
+
+    db.commit()

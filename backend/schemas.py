@@ -59,3 +59,5 @@ class Listing(CreateListingInput):
     priceLevel: Optional[str] = None
     createdAt: Optional[datetime] = None
     updatedAt: Optional[datetime] = None
+    is_demo: bool = False
+    owner_id: Optional[int] = None

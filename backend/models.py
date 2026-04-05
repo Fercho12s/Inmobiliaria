@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Float, DateTime, JSON, Index
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, DateTime, JSON, Index
 from sqlalchemy.sql import func
 from database import Base
 
@@ -48,6 +48,11 @@ class Listing(Base):
     priceLevel           = Column(String,  nullable=True)
     createdAt     = Column(DateTime, server_default=func.now())
     updatedAt     = Column(DateTime, onupdate=func.now())
+
+    # Access control
+    owner_id         = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    is_demo          = Column(Boolean, default=False, nullable=False)
+    guest_session_id = Column(String,  nullable=True)
 
     __table_args__ = (
         Index("ix_listings_city",        "city"),

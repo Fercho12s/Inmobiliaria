@@ -1,4 +1,5 @@
 import os
+import secrets
 import shutil
 import uuid
 from contextlib import asynccontextmanager
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query, Response
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -33,6 +34,7 @@ async def lifespan(_app: FastAPI):
     db = next(get_db())
     try:
         auth.seed_admin(db)
+        auth.seed_demo(db)
     finally:
         db.close()
     yield
@@ -91,6 +93,15 @@ def _get_or_404(listing_id: int, db: Session):
     return listing
 
 
+def _require_demo_for_guest(listing: models.Listing, current_user: Optional[models.User]) -> None:
+    """Raise 403 if a guest is trying to access a non-demo listing."""
+    if not current_user and not listing.is_demo:
+        raise HTTPException(
+            status_code=403,
+            detail="Regístrate para acceder a esta propiedad.",
+        )
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/healthz")
@@ -101,8 +112,14 @@ def health():
 # ── Assets — qué archivos ya fueron generados para una propiedad ─────────────
 
 @app.get("/api/listings/{listing_id}/assets")
-def get_listing_assets(listing_id: int, db: Session = Depends(get_db)):
-    _get_or_404(listing_id, db)
+def get_listing_assets(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
     base         = Path(OUTPUT_DIR) / str(listing_id)
     carousel_dir = base / "carousel"
     video_status = video_gen.get_status(listing_id)
@@ -207,14 +224,22 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.get("/api/listings", response_model=List[schemas.Listing])
 def get_listings(
-    skip:  int          = Query(0,    ge=0),
-    limit: int          = Query(100,  ge=1, le=500),
-    q:     Optional[str]= Query(None, description="Buscar en título/dirección"),
-    city:  Optional[str]= Query(None),
-    type:  Optional[str]= Query(None, description="listingType: sale|rent"),
-    db:    Session      = Depends(get_db),
+    skip:  int           = Query(0,    ge=0),
+    limit: int           = Query(100,  ge=1, le=500),
+    q:     Optional[str] = Query(None, description="Buscar en título/dirección"),
+    city:  Optional[str] = Query(None),
+    type:  Optional[str] = Query(None, description="listingType: sale|rent"),
+    db:    Session       = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
 ):
+    if not current_user:
+        # Guest: only the demo listing
+        return db.query(models.Listing).filter(models.Listing.is_demo == True).all()  # noqa: E712
+
     query = db.query(models.Listing)
+    if current_user.role != "admin":
+        query = query.filter(models.Listing.owner_id == current_user.id)
+
     if q:
         like = f"%{q}%"
         query = query.filter(
@@ -230,21 +255,64 @@ def get_listings(
 
 
 @app.get("/api/listings/{listing_id}", response_model=schemas.Listing)
-def get_listing(listing_id: int, db: Session = Depends(get_db)):
-    return _get_or_404(listing_id, db)
-
-
-@app.post("/api/listings", response_model=schemas.Listing, status_code=201)
-def create_listing(data: schemas.CreateListingInput, db: Session = Depends(get_db)):
-    listing = models.Listing(**data.model_dump())
-    db.add(listing)
-    db.commit()
-    db.refresh(listing)
+def get_listing(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
     return listing
 
 
+@app.post("/api/listings", response_model=schemas.Listing, status_code=201)
+def create_listing(
+    data: schemas.CreateListingInput,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    if not current_user:
+        guest_id = request.cookies.get("vendrixa_guest")
+        if not guest_id:
+            guest_id = secrets.token_hex(16)
+        else:
+            existing = db.query(models.Listing).filter(
+                models.Listing.guest_session_id == guest_id
+            ).first()
+            if existing:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Como visitante solo puedes insertar una propiedad. Regístrate para agregar más.",
+                )
+        listing = models.Listing(**data.model_dump(), guest_session_id=guest_id)
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+        response.set_cookie(
+            key="vendrixa_guest",
+            value=guest_id,
+            max_age=86400 * 30,
+            httponly=True,
+            samesite="lax",
+            path="/",
+        )
+        return listing
+    else:
+        listing = models.Listing(**data.model_dump(), owner_id=current_user.id)
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+        return listing
+
+
 @app.delete("/api/listings/{listing_id}", status_code=204)
-def delete_listing(listing_id: int, db: Session = Depends(get_db)):
+def delete_listing(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     listing = _get_or_404(listing_id, db)
     db.delete(listing)
     db.commit()
@@ -253,8 +321,25 @@ def delete_listing(listing_id: int, db: Session = Depends(get_db)):
 # ── Generación IA ─────────────────────────────────────────────────────────────
 
 @app.post("/api/listings/{listing_id}/generate", response_model=schemas.Listing)
-def generate_content(listing_id: int, db: Session = Depends(get_db)):
+def generate_content(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
     listing = _get_or_404(listing_id, db)
+
+    if not current_user:
+        if not listing.is_demo:
+            raise HTTPException(
+                status_code=403,
+                detail="Solo puedes generar contenido para la propiedad demo. Regístrate para usar esta función.",
+            )
+        if listing.generatedDescription:
+            raise HTTPException(
+                status_code=403,
+                detail="El contenido demo ya fue generado. Regístrate para regenerar.",
+            )
+
     try:
         generated = ai.generate_listing_content(listing)
     except Exception as e:
@@ -276,8 +361,14 @@ async def download_pdf(
     listing_id: int,
     refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
     db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
 ):
     listing    = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
+    if not current_user and refresh:
+        raise HTTPException(status_code=403, detail="Regístrate para regenerar archivos.")
+
     remote_key = f"{listing_id}/pdf.pdf"
     out        = str(_listing_dir(listing_id) / "pdf.pdf")
 
@@ -310,8 +401,14 @@ async def download_instagram_image(
     listing_id: int,
     refresh: bool = Query(False, description="Forzar regeneración ignorando caché"),
     db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
 ):
     listing    = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
+    if not current_user and refresh:
+        raise HTTPException(status_code=403, detail="Regístrate para regenerar archivos.")
+
     remote_key = f"{listing_id}/instagram.jpg"
     out        = str(_listing_dir(listing_id) / "instagram.jpg")
 
@@ -340,7 +437,11 @@ async def download_instagram_image(
 # ── Publicar en Instagram ─────────────────────────────────────────────────────
 
 @app.post("/api/listings/{listing_id}/instagram/publish")
-async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
+async def publish_instagram(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     listing  = _get_or_404(listing_id, db)
     img_path = str(_listing_dir(listing_id) / "instagram.jpg")
 
@@ -367,7 +468,11 @@ async def publish_instagram(listing_id: int, db: Session = Depends(get_db)):
 # ── Publicar Video en Instagram ───────────────────────────────────────────────
 
 @app.post("/api/listings/{listing_id}/video/instagram/publish")
-async def publish_video_instagram(listing_id: int, db: Session = Depends(get_db)):
+async def publish_video_instagram(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     listing    = _get_or_404(listing_id, db)
     video_path = video_gen.get_video_path(listing_id)
 
@@ -390,15 +495,34 @@ async def publish_video_instagram(listing_id: int, db: Session = Depends(get_db)
 # ── Carrusel ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/listings/{listing_id}/carousel/generate")
-async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
+async def generate_carousel(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
     listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
+    if not current_user:
+        # Block regeneration for guests: check if carousel already exists
+        if storage.enabled():
+            already = storage.exists(f"{listing_id}/carousel/slide_01.jpg")
+        else:
+            cdir = Path(carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR))
+            already = cdir.exists() and any(cdir.glob("slide_*.jpg"))
+        if already:
+            raise HTTPException(
+                status_code=403,
+                detail="El carrusel demo ya fue generado. Regístrate para regenerar.",
+            )
+
     carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
 
     # Borrar carrusel anterior si existe
     if Path(carousel_dir).exists():
         shutil.rmtree(carousel_dir)
 
-    # Resolver imágenes a rutas locales absolutas (sin enhancement para evitar fallos de red)
+    # Resolver imágenes a rutas locales absolutas
     images = listing.images or []
     resolved: list[str] = []
     for url in images:
@@ -422,7 +546,15 @@ async def generate_carousel(listing_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/api/listings/{listing_id}/carousel/{slide_num}")
-def get_carousel_slide(listing_id: int, slide_num: int):
+def get_carousel_slide(
+    listing_id: int,
+    slide_num: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
     remote_key = f"{listing_id}/carousel/slide_{slide_num:02d}.jpg"
     if storage.enabled():
         if storage.exists(remote_key):
@@ -436,11 +568,14 @@ def get_carousel_slide(listing_id: int, slide_num: int):
 
 
 @app.post("/api/listings/{listing_id}/carousel/publish")
-async def publish_carousel(listing_id: int, db: Session = Depends(get_db)):
+async def publish_carousel(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
     listing      = _get_or_404(listing_id, db)
     carousel_dir = carousel_gen.get_carousel_dir(listing_id, OUTPUT_DIR)
 
-    # Recopilar todos los slides existentes en orden
     slide_paths = sorted(Path(carousel_dir).glob("slide_*.jpg")) if Path(carousel_dir).exists() else []
     if not slide_paths:
         raise HTTPException(status_code=404, detail="Carrusel no generado todavía")
@@ -465,14 +600,25 @@ async def generate_video(
     listing_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
 ):
     listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
+    if not current_user:
+        # Block regeneration for guests if video already exists
+        old_video = Path(video_gen.get_video_path(listing_id))
+        if old_video.exists():
+            raise HTTPException(
+                status_code=403,
+                detail="El video demo ya fue generado. Regístrate para regenerar.",
+            )
+
     status  = video_gen.get_status(listing_id)
 
     if status.get("status") == "rendering":
         return {"status": "rendering", "progress": status.get("progress", 0)}
 
-    # Borrar video anterior para que el status vuelva a "idle" durante el render
     old_video = Path(video_gen.get_video_path(listing_id))
     if old_video.exists():
         old_video.unlink()
@@ -500,12 +646,25 @@ async def generate_video(
 
 
 @app.get("/api/listings/{listing_id}/video/status")
-def video_status(listing_id: int):
+def video_status(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
     return video_gen.get_status(listing_id)
 
 
 @app.get("/api/listings/{listing_id}/video")
-def download_video(listing_id: int):
+def download_video(
+    listing_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(auth.get_optional_user),
+):
+    listing = _get_or_404(listing_id, db)
+    _require_demo_for_guest(listing, current_user)
+
     path = video_gen.get_video_path(listing_id)
     if not Path(path).exists():
         raise HTTPException(status_code=404, detail="Video no generado todavía")
