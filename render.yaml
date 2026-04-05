@@ -11,12 +11,26 @@ services:
         value: /app/data/generated
       - key: REMOTION_CHROME_EXECUTABLE
         value: /usr/local/bin/chromium-sandbox-wrapper
-      - key: OPENAI_API_KEY
-        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: vendrixa-db
           property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: UPLOADPOST_USER
+        sync: false
+      - key: UPLOADPOST_API_KEY
+        sync: false
+      - key: CLIPDROP_API_KEY
+        sync: false
+      - key: DEEPAI_API_KEY
+        sync: false
+      - key: HF_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
 
 databases:
   - name: vendrixa-db
