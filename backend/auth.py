@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import Cookie, Depends, HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from sqlalchemy import inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
 import models
@@ -72,6 +73,32 @@ def user_to_dict(user: models.User) -> dict:
         "role":            user.role,
         "profileImageUrl": None,
     }
+
+
+def run_migrations(engine) -> None:
+    """
+    Add new columns to existing tables without dropping data.
+    Safe to call on every startup — skips columns that already exist.
+    """
+    insp = sa_inspect(engine)
+    if "listings" not in insp.get_table_names():
+        return  # Fresh DB — create_all will build the table with all columns
+
+    existing = {col["name"] for col in insp.get_columns("listings")}
+    stmts: list[str] = []
+
+    if "owner_id" not in existing:
+        stmts.append("ALTER TABLE listings ADD COLUMN owner_id INTEGER REFERENCES users(id)")
+    if "is_demo" not in existing:
+        stmts.append("ALTER TABLE listings ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT FALSE")
+    if "guest_session_id" not in existing:
+        stmts.append("ALTER TABLE listings ADD COLUMN guest_session_id VARCHAR")
+
+    if stmts:
+        with engine.connect() as conn:
+            for s in stmts:
+                conn.execute(text(s))
+            conn.commit()
 
 
 def seed_admin(db: Session) -> None:

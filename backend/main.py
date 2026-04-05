@@ -30,7 +30,8 @@ from database import Base, engine, get_db
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine)   # create new tables
+    auth.run_migrations(engine)              # add missing columns to existing tables
     db = next(get_db())
     try:
         auth.seed_admin(db)
