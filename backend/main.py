@@ -1,11 +1,12 @@
 import os
 import shutil
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+import auth
 import ai
 import pdf_gen
 import image_gen
@@ -24,9 +26,19 @@ import enhance as enhance_module
 import storage
 from database import Base, engine, get_db
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Vendrixa API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    db = next(get_db())
+    try:
+        auth.seed_admin(db)
+    finally:
+        db.close()
+    yield
+
+
+app = FastAPI(title="Vendrixa API", version="1.0.0", lifespan=lifespan)
 
 # ── Middleware ────────────────────────────────────────────────────────────────
 app.add_middleware(GZipMiddleware, minimum_size=500)
@@ -130,16 +142,47 @@ async def geocode(q: str = Query(..., description="Ciudad o dirección a buscar"
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
+_IS_PROD = bool(os.getenv("DATABASE_URL"))
+
+
+@app.post("/api/auth/login")
+def login_with_credentials(
+    data: schemas.LoginInput,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    user = db.query(models.User).filter(models.User.email == data.email).first()
+    if not user or not auth.verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    token = auth.create_token(user.id)
+    response.set_cookie(
+        key="vendrixa_token",
+        value=token,
+        httponly=True,
+        secure=_IS_PROD,
+        samesite="lax",
+        max_age=86400 * auth.TOKEN_HOURS,
+        path="/",
+    )
+    return {"user": auth.user_to_dict(user), "isAuthenticated": True}
+
+
 @app.get("/api/auth/user")
-def get_user():
-    return {"user": None, "isAuthenticated": False}
+def get_auth_user(current_user: Optional[models.User] = Depends(auth.get_optional_user)):
+    if not current_user:
+        return {"user": None, "isAuthenticated": False}
+    return {"user": auth.user_to_dict(current_user), "isAuthenticated": True}
+
 
 @app.get("/api/login")
-def login():
-    return RedirectResponse(url="/")
+def login_redirect():
+    return RedirectResponse(url="/login")
+
 
 @app.get("/api/logout")
-def logout():
+def logout(response: Response):
+    response.delete_cookie("vendrixa_token", path="/")
     return RedirectResponse(url="/")
 
 

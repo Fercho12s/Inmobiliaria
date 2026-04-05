@@ -3,6 +3,27 @@ from typing import Optional, List
 from datetime import datetime
 
 
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class LoginInput(BaseModel):
+    email: str
+    password: str
+
+
+class AuthUser(BaseModel):
+    id: str
+    email: str
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    role: str = "agent"
+    profileImageUrl: Optional[str] = None
+
+
+class AuthResponse(BaseModel):
+    user: Optional[AuthUser]
+    isAuthenticated: bool
+
+
 class CreateListingInput(BaseModel):
     title: str
     price: float

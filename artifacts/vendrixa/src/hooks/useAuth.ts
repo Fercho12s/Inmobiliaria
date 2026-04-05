@@ -20,8 +20,7 @@ export function useAuth() {
   });
 
   const login = () => {
-    const base = (import.meta.env.BASE_URL as string).replace(/\/+$/, "") || "/";
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+    window.location.href = "/login";
   };
 
   const logout = async () => {

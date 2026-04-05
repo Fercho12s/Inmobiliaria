@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import DemoBanner from "@/components/DemoBanner";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import NewListing from "@/pages/NewListing";
 import ListingDetail from "@/pages/ListingDetail";
@@ -24,6 +25,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/login" component={Login} />
       <Route path="/listados" component={Dashboard} />
       <Route path="/nuevo-listado" component={NewListing} />
       <Route path="/listados/:id" component={ListingDetail} />

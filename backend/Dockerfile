@@ -55,7 +55,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ── Node deps del proyecto de video (cacheado en capa propia) ─────────────────
 COPY video/package.json video/package-lock.json* ./video/
-RUN cd video && npm ci --omit=dev 2>/dev/null || npm install --omit=dev
+RUN cd video && (npm ci --omit=dev 2>/dev/null || npm install --omit=dev) && npm cache clean --force
 
 # ── Código fuente ─────────────────────────────────────────────────────────────
 COPY . .
