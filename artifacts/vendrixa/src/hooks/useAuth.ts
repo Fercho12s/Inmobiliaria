@@ -16,7 +16,8 @@ export function useAuth() {
     queryKey: AUTH_QUERY_KEY,
     queryFn: () => apiClient.get<AuthResponse>("/auth/user"),
     retry: false,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0,               // siempre consulta el backend al montar
+    refetchOnWindowFocus: true, // revalida cuando el usuario vuelve a la pestaña
   });
 
   const login = () => {

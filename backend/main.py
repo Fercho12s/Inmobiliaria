@@ -30,12 +30,29 @@ from database import Base, engine, get_db
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    Base.metadata.create_all(bind=engine)   # create new tables
-    auth.run_migrations(engine)              # add missing columns to existing tables
+    import logging
+    log = logging.getLogger("vendrixa.startup")
+
+    try:
+        log.info(">> create_all: creando tablas nuevas...")
+        Base.metadata.create_all(bind=engine)
+        log.info(">> run_migrations: agregando columnas faltantes...")
+        auth.run_migrations(engine)
+        log.info(">> migrations OK")
+    except Exception as exc:
+        log.error(f"ERROR en migraciones: {exc}", exc_info=True)
+        raise
+
     db = next(get_db())
     try:
+        log.info(">> seed_admin...")
         auth.seed_admin(db)
+        log.info(">> seed_demo...")
         auth.seed_demo(db)
+        log.info(">> startup completo")
+    except Exception as exc:
+        log.error(f"ERROR en seed: {exc}", exc_info=True)
+        raise
     finally:
         db.close()
     yield
@@ -108,6 +125,19 @@ def _require_demo_for_guest(listing: models.Listing, current_user: Optional[mode
 @app.get("/api/healthz")
 def health():
     return {"status": "ok"}
+
+
+# ── Setup de emergencia (solo funciona si no hay usuarios aún) ────────────────
+
+@app.post("/api/setup")
+def setup_admin(db: Session = Depends(get_db)):
+    """Crea el admin inicial. Solo funciona si la tabla users está vacía."""
+    count = db.query(models.User).count()
+    if count > 0:
+        raise HTTPException(status_code=403, detail="Setup ya fue realizado.")
+    auth.seed_admin(db)
+    auth.seed_demo(db)
+    return {"ok": True, "detail": "Admin creado correctamente."}
 
 
 # ── Assets — qué archivos ya fueron generados para una propiedad ─────────────
