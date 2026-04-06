@@ -25,7 +25,7 @@ export function useAuth() {
   };
 
   const logout = async () => {
-    await fetch("/api/logout", { method: "GET", credentials: "include" });
+    await fetch("/api/logout", { method: "POST", credentials: "include" });
     queryClient.setQueryData(AUTH_QUERY_KEY, {
       user: null,
       isAuthenticated: false,

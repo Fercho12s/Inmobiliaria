@@ -81,11 +81,34 @@ def run_migrations(engine) -> None:
     Safe to call on every startup — skips columns that already exist.
     """
     insp = sa_inspect(engine)
-    if "listings" not in insp.get_table_names():
+    table_names = insp.get_table_names()
+
+    # ── users ────────────────────────────────────────────────────────────────
+    if "users" in table_names:
+        existing = {col["name"] for col in insp.get_columns("users")}
+        stmts: list[str] = []
+        if "first_name" not in existing:
+            stmts.append("ALTER TABLE users ADD COLUMN first_name VARCHAR")
+        if "last_name" not in existing:
+            stmts.append("ALTER TABLE users ADD COLUMN last_name VARCHAR")
+        if "role" not in existing:
+            stmts.append("ALTER TABLE users ADD COLUMN role VARCHAR DEFAULT 'agent'")
+        if "is_active" not in existing:
+            stmts.append("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE")
+        if "created_at" not in existing:
+            stmts.append("ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT now()")
+        if stmts:
+            with engine.connect() as conn:
+                for s in stmts:
+                    conn.execute(text(s))
+                conn.commit()
+
+    # ── listings ─────────────────────────────────────────────────────────────
+    if "listings" not in table_names:
         return  # Fresh DB — create_all will build the table with all columns
 
     existing = {col["name"] for col in insp.get_columns("listings")}
-    stmts: list[str] = []
+    stmts = []
 
     if "owner_id" not in existing:
         stmts.append("ALTER TABLE listings ADD COLUMN owner_id INTEGER REFERENCES users(id)")

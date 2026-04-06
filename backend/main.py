@@ -25,7 +25,7 @@ import instagram as ig_module
 import video_gen
 import enhance as enhance_module
 import storage
-from database import Base, engine, get_db
+from database import Base, engine, get_db, SessionLocal
 
 
 @asynccontextmanager
@@ -43,7 +43,7 @@ async def lifespan(_app: FastAPI):
         log.error(f"ERROR en migraciones: {exc}", exc_info=True)
         raise
 
-    db = next(get_db())
+    db = SessionLocal()
     try:
         log.info(">> seed_admin...")
         auth.seed_admin(db)
@@ -228,10 +228,24 @@ def login_redirect():
     return RedirectResponse(url="/login")
 
 
-@app.get("/api/logout")
+@app.post("/api/logout")
 def logout(response: Response):
-    response.delete_cookie("vendrixa_token", path="/")
-    return RedirectResponse(url="/")
+    response.delete_cookie(
+        key="vendrixa_token",
+        path="/",
+        httponly=True,
+        secure=_IS_PROD,
+        samesite="lax",
+    )
+    return {"ok": True}
+
+
+@app.get("/api/logout")
+def logout_get(response: Response):
+    """Compatibilidad GET — redirige borrando la cookie."""
+    r = RedirectResponse(url="/")
+    r.delete_cookie(key="vendrixa_token", path="/", httponly=True, samesite="lax")
+    return r
 
 
 # ── Upload de imágenes ────────────────────────────────────────────────────────
