@@ -179,13 +179,18 @@ def get_listing_assets(
 
 @app.get("/api/geocode")
 async def geocode(q: str = Query(..., description="Ciudad o dirección a buscar")):
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            "https://nominatim.openstreetmap.org/search",
-            params={"q": q, "format": "json", "limit": 1},
-            headers={"User-Agent": "Vendrixa/1.0 (real-estate-app)"},
-        )
-    return r.json()
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": q, "format": "json", "limit": 1},
+                headers={"User-Agent": "Vendrixa/1.0 (real-estate-app)"},
+            )
+        if not r.is_success:
+            return []
+        return r.json()
+    except Exception:
+        return []
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
