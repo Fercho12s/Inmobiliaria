@@ -1,9 +1,12 @@
 import { Link } from "wouter";
 import { Bed, Bath, Maximize, MapPin, Eye, Sparkles, Trash2, Car } from "lucide-react";
+import { motion } from "framer-motion";
 import type { Listing } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { formatPrice } from "@/lib/utils";
+import { apiClient } from "@/lib/apiClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PropertyCardProps {
   listing: Partial<Listing>;
@@ -12,125 +15,165 @@ interface PropertyCardProps {
 
 export default function PropertyCard({ listing, previewMode = false }: PropertyCardProps) {
   const { toast } = useToast();
-  const [isDeleted, setIsDeleted] = useState(false);
+  const queryClient = useQueryClient();
+  const [isDeleted,  setIsDeleted]  = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (window.confirm("¿Estás seguro de eliminar esta propiedad?")) {
-      toast({
-        title: "Eliminando...",
-        description: "La propiedad ha sido eliminada.",
-      });
+    if (!listing.id) return;
+    if (!window.confirm(`¿Eliminar "${listing.title}"? Esta acción no se puede deshacer.`)) return;
+    setIsDeleting(true);
+    try {
+      await apiClient.delete(`/listings/${listing.id}`);
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
       setIsDeleted(true);
+      toast({ title: "Propiedad eliminada" });
+    } catch {
+      toast({ title: "Error al eliminar", variant: "destructive" });
+      setIsDeleting(false);
     }
   };
 
-  const handleRegenerate = (e: React.MouseEvent) => {
+  const handleRegenerate = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    toast({
-      title: "Generando...",
-      description: "Generando contenido con IA para esta propiedad.",
-    });
+    if (!listing.id) return;
+    toast({ title: "Generando contenido IA…" });
+    try {
+      await apiClient.post(`/listings/${listing.id}/generate`, {});
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      toast({ title: "Contenido generado", description: "IA completó el análisis." });
+    } catch {
+      toast({ title: "Error al generar", variant: "destructive" });
+    }
   };
 
   if (isDeleted) return null;
 
-  const images = listing.images && listing.images.length > 0 
-    ? listing.images 
+  const images = listing.images?.length
+    ? listing.images
     : [`${import.meta.env.BASE_URL}images/placeholder-property.png`];
 
+  const hasAI = !!(listing.generatedDescription || listing.instagramCaption);
+
   const CardContent = (
-    <div className={`group relative w-full rounded-none overflow-hidden bg-card border border-white/5 transition-all duration-500 hover:border-white/30 ${previewMode ? 'shadow-2xl' : ''}`}>
-      
-      {/* Type Badge */}
-      <div className="absolute top-4 left-4 z-20 flex gap-2">
-        <span className="px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-bold tracking-wider uppercase border border-white/10">
-          {listing.listingType || "Venta"}
+    <motion.div
+      whileHover={{ y: -3 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className={`group relative w-full overflow-hidden bg-card border border-white/6 transition-colors duration-300 hover:border-primary/28 ${
+        isDeleting ? "opacity-50 pointer-events-none" : ""
+      }`}
+    >
+      {/* ── Badges ── */}
+      <div className="absolute top-3.5 left-3.5 z-20 flex gap-1.5">
+        <span className="px-2.5 py-1 bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold tracking-[0.15em] uppercase border border-white/10">
+          {listing.listingType === "renta" ? "Renta" : "Venta"}
         </span>
-        <span className="px-3 py-1 bg-white text-black text-xs font-bold tracking-wider uppercase">
-          {listing.propertyType || "Propiedad"}
-        </span>
+        {hasAI && (
+          <span className="px-2.5 py-1 bg-primary/90 text-primary-foreground text-[9px] font-bold tracking-[0.15em] uppercase flex items-center gap-1">
+            <Sparkles className="w-2.5 h-2.5" />
+            IA
+          </span>
+        )}
       </div>
 
-      {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10" />
-        <img 
-          src={images[0]} 
-          alt={listing.title || "Propiedad"} 
-          className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-105"
+      {/* ── Image ── */}
+      <div className="relative h-[220px] overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent z-10" />
+        <img
+          src={images[0]}
+          alt={listing.title || "Propiedad"}
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]"
         />
-        
+
         {/* Price overlay */}
         <div className="absolute bottom-4 left-4 z-20">
-          <p className="text-2xl font-sans text-white font-bold tracking-wide">
-            {formatPrice(listing.price, listing.currency)} <span className="text-sm font-sans font-normal opacity-80">{listing.currency || "MXN"}</span>
+          <p className="font-display text-3xl leading-none gold-text tracking-wider">
+            {formatPrice(listing.price, listing.currency)}
           </p>
+          <p className="text-[9px] text-white/45 uppercase tracking-widest mt-0.5 font-sans">
+            {listing.currency || "MXN"}
+          </p>
+        </div>
+
+        {/* Property type — bottom right */}
+        <div className="absolute bottom-4 right-4 z-20">
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-white/55 bg-black/45 backdrop-blur-sm px-2 py-1">
+            {listing.propertyType || "Propiedad"}
+          </span>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
-        <h3 className="text-lg font-sans font-bold text-foreground line-clamp-1 mb-2 group-hover:text-white transition-colors">
-          {listing.title || "Título de la propiedad"}
+      {/* ── Content ── */}
+      <div className="p-5">
+        <h3 className="text-sm font-bold text-foreground line-clamp-1 mb-2 tracking-tight">
+          {listing.title || "Propiedad sin título"}
         </h3>
-        
-        <div className="flex items-center text-muted-foreground text-sm mb-6 gap-2">
-          <MapPin className="w-4 h-4 text-white" />
+        <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] mb-4">
+          <MapPin className="w-3 h-3 text-primary/60 shrink-0" />
           <span className="line-clamp-1">
-            {listing.city && listing.state ? `${listing.city}, ${listing.state}` : "Ubicación no especificada"}
+            {listing.city && listing.state
+              ? `${listing.city}, ${listing.state}`
+              : listing.city || "Sin ubicación"}
           </span>
         </div>
 
-        <div className="flex items-center gap-4 border-t border-white/5 pt-4 flex-wrap">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Bed className="w-4 h-4 text-white" />
-            <span className="text-sm font-medium">{listing.bedrooms || 0}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Bath className="w-4 h-4 text-white" />
-            <span className="text-sm font-medium">{listing.bathrooms || 0}</span>
-          </div>
+        {/* Stats */}
+        <div className="flex items-center gap-4 pt-4 border-t border-white/5 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Bed className="w-3.5 h-3.5 text-white/35" />
+            <span className="font-semibold text-foreground/75">{listing.bedrooms ?? 0}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Bath className="w-3.5 h-3.5 text-white/35" />
+            <span className="font-semibold text-foreground/75">{listing.bathrooms ?? 0}</span>
+          </span>
           {(listing.parkingSpots ?? 0) > 0 && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Car className="w-4 h-4 text-white" />
-              <span className="text-sm font-medium">{listing.parkingSpots}</span>
-            </div>
+            <span className="flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5 text-white/35" />
+              <span className="font-semibold text-foreground/75">{listing.parkingSpots}</span>
+            </span>
           )}
-          <div className="flex items-center gap-2 text-muted-foreground ml-auto">
-            <Maximize className="w-4 h-4 text-white" />
-            <span className="text-sm font-medium">{listing.area || 0} {listing.areaUnit || "m²"}</span>
-          </div>
+          <span className="flex items-center gap-1.5 ml-auto">
+            <Maximize className="w-3.5 h-3.5 text-white/35" />
+            <span className="font-semibold text-foreground/75">
+              {listing.area ?? 0} {listing.areaUnit || "m²"}
+            </span>
+          </span>
         </div>
       </div>
 
-      {/* Action Bar (Hover) */}
+      {/* ── Hover action bar ── */}
       {!previewMode && (
-        <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-[#111111] border-t border-white/10 p-2 flex justify-around items-center z-30 shadow-lg">
-          <div className="flex flex-col items-center p-2 text-muted-foreground hover:text-white transition-colors cursor-pointer w-full text-center">
-            <Eye className="w-4 h-4 mb-1" />
-            <span className="text-[10px] uppercase font-bold tracking-wider">Ver</span>
+        <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-background/96 backdrop-blur-sm border-t border-white/7 flex z-30">
+          <div className="flex-1 flex flex-col items-center justify-center py-3 text-muted-foreground hover:text-foreground hover:bg-white/4 transition-colors cursor-pointer">
+            <Eye className="w-3.5 h-3.5 mb-1" />
+            <span className="text-[8px] uppercase font-bold tracking-widest">Ver</span>
           </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div onClick={handleRegenerate} className="flex flex-col items-center p-2 text-muted-foreground hover:text-white transition-colors cursor-pointer w-full text-center">
-            <Sparkles className="w-4 h-4 mb-1" />
-            <span className="text-[10px] uppercase font-bold tracking-wider">Generar</span>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div onClick={handleDelete} className="flex flex-col items-center p-2 text-muted-foreground hover:text-red-500 transition-colors cursor-pointer w-full text-center">
-            <Trash2 className="w-4 h-4 mb-1" />
-            <span className="text-[10px] uppercase font-bold tracking-wider">Eliminar</span>
-          </div>
+          <div className="w-px bg-white/6" />
+          <button
+            onClick={handleRegenerate}
+            className="flex-1 flex flex-col items-center justify-center py-3 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 mb-1" />
+            <span className="text-[8px] uppercase font-bold tracking-widest">IA</span>
+          </button>
+          <div className="w-px bg-white/6" />
+          <button
+            onClick={handleDelete}
+            className="flex-1 flex flex-col items-center justify-center py-3 text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5 mb-1" />
+            <span className="text-[8px] uppercase font-bold tracking-widest">Borrar</span>
+          </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 
-  if (previewMode || !listing.id) {
-    return CardContent;
-  }
+  if (previewMode || !listing.id) return CardContent;
 
   return (
     <Link href={`/listados/${listing.id}`} className="block">
